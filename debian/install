@@ -1,0 +1,2 @@
+Erasme.Cloud/bin/Release/erasme-cloud-1.0.pc /usr/lib/pkgconfig
+Erasme.Cloud/bin/Release/*.dll /usr/lib/cli/erasme-cloud-1.0/

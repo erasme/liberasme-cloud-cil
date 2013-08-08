@@ -1,0 +1,52 @@
+#!/usr/bin/make -f
+
+build: build-stamp
+build-stamp:
+	dh_testdir
+	mdtool build -c:Release
+	touch $@
+
+clean:
+	dh_testdir
+	dh_testroot
+	rm -f build-stamp 
+
+	rm -Rf Erasme.Cloud/bin config.log
+
+	dh_clean
+
+install: build
+	dh_testdir
+	dh_testroot
+	dh_clean -k 
+	dh_installdirs
+
+	# Add here commands to install the package into debian/eracloud.
+	mkdir -p Erasme.Cloud/bin/Release/
+	cp debian/erasme.cloud.pc Erasme.Cloud/bin/Release/erasme-cloud-1.0.pc
+
+
+# Build architecture-independent files here.
+binary-indep: build install
+	dh_testdir
+	dh_testroot
+	dh_installchangelogs 
+	dh_installdocs
+	dh_installexamples
+	dh_install
+#	dh_installinit -n
+	dh_installman
+	dh_installcligac
+	dh_link
+#	dh_strip
+	dh_compress
+	dh_fixperms
+	dh_installdeb
+	dh_shlibdeps
+	dh_makeclilibs
+	dh_gencontrol
+	dh_md5sums
+	dh_builddeb
+
+binary: binary-indep
+.PHONY: build clean binary-indep binary install 

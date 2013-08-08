@@ -1,0 +1,220 @@
+liberasme-cloud-cil (1.0.0) raring; urgency=low
+
+  * Replace Erasme.HttpServer by Erasme.Http
+  * Major cleanup
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Thu,  8 Aug 2013 16:31:00 +0200
+
+liberasme-cloud-cil (0.3.25-1) raring; urgency=low
+
+  * Correct round size problem in video preview
+  * Allow a string status for Google and Facebook OAuth2
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Wed, 19 Jun 2013 15:56:00 +0200
+
+liberasme-cloud-cil (0.3.24-1) raring; urgency=low
+
+  * Replace cutycapt by phantomjs
+  * Correct event handler growing list bug in MessageMonitoring
+    and StorageMonitoring
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Mon, 17 Jun 2013 12:19:00 +0200
+
+liberasme-cloud-cil (0.3.23-1) raring; urgency=low
+
+  * Use ffmpegstatic in place of ffmpeg for video preview and audio
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Thu,  6 Jun 2013 14:26:00 +0200
+
+liberasme-cloud-cil (0.3.22-1) raring; urgency=low
+
+  * Use ffmpegstatic in place of ffmpeg
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Thu,  6 Jun 2013 14:18:00 +0200
+
+liberasme-cloud-cil (0.3.21-1) raring; urgency=low
+
+  * Correct possible corruption problem in MessageService
+  * Add a simple QueueService
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Thu, 30 May 2013 11:45:00 +0200
+
+liberasme-cloud-cil (0.3.20-1) raring; urgency=low
+
+  * In StaticFiles allow caching for fonts
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Mon, 22 Apr 2013 12:26:00 +0200
+
+liberasme-cloud-cil (0.3.19-1) raring; urgency=low
+
+  * Ajout du type mime OGG Vorbis, AAC et M4A
+  * Correct video preview ratio problem
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Thu, 18 Apr 2013 17:43:00 +0200
+
+liberasme-cloud-cil (0.3.18-1) raring; urgency=low
+
+  * Add optional "with" argument for MessageService, set max limit to 400
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Tue, 16 Apr 2013 15:20:00 +0200
+
+liberasme-cloud-cil (0.3.17-2) raring; urgency=low
+
+  * Update to Ubuntu Raring
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Tue,  2 Apr 2013 11:15:00 +0200
+
+liberasme-cloud-cil (0.3.17-1) quantal; urgency=low
+
+  * Correct PDF rotated pages
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Thu, 28 Mar 2013 12:55:00 +0100
+
+liberasme-cloud-cil (0.3.16-1) quantal; urgency=low
+
+  * Limit preview for text files to max 50 Kb files
+  * In PreviewService, dont keep DB open while generating preview
+  * In StorageService no more use the mimetype given by browser. Guess using extensions
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Thu, 28 Mar 2013 11:15:00 +0100
+
+liberasme-cloud-cil (0.3.15-1) quantal; urgency=low 
+
+  * Correct unoconv listener problem in daemon mode
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Mon, 25 Mar 2013 17:20:00 +0100
+
+liberasme-cloud-cil (0.3.9-2) quantal; urgency=low 
+
+  * Add support for OpenDocument, Word *, PowerPoint documents in PdfService
+  * Add a service to download the converted PDF in PdfService
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Wed, 20 Mar 2013 17:21:00 +0100
+
+liberasme-cloud-cil (0.3.8-2) quantal; urgency=low
+
+  * Add dependency for poppler-utils for pdftoppm
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Wed, 20 Mar 2013 11:04:00 +0100
+
+liberasme-cloud-cil (0.3.8-1) quantal; urgency=low
+
+  * Use pdftoppm for PDF preview (performance)
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Wed, 20 Mar 2013 10:10:00 +0100
+
+liberasme-cloud-cil (0.3.7-1) quantal; urgency=low
+
+  * Add mimetype for webp, weba, woff and eot in StaticFilesService
+  * Allow 1 month caching for font files in StaticFilesService
+  * Correct missing lock is StorageService event. Problems caused by StorageMonitorService
+  * Correct a bug in MultiPartFormDataDecode which create problem with filename with a "
+  * Correct a bug in StorageService for file with filename which contains ;
+  * Correct a bug in Utils.Send for Streams with zero length content which support GZip
+  * Correct a bug in storage when POST is done in multipart with a "define" part
+  * Change AudioService to hase async encoding
+  * Add VideoService to re-encode the video files
+  * Define a common directory for temporary files
+  * Correct possible bug when reading POST content
+  * Provide Receive Utils to read the request stream content
+  * Correct bug in HTTP Keep-Alive not taking the setup values
+  * Add execution time to RequestLoggerPlugin
+  * Add preview support for URL files
+  
+ -- Daniel Lacroix <dlacroix@erasme.org>  Tue, 19 Mar 2013 17:25:00 +0100
+
+liberasme-cloud-cil (0.3.6-1) quantal; urgency=low
+
+  * in AuthSessionPlugin, the header was no working due to lower cas of HTTP headers
+  * change AuthSessionService HTTP protocol, add search request
+  * change video preview from totem-video-thumbnailer to ffmpeg because totem-video-thumbnailer
+    needs X server
+  * Support video orientation with "mediainfo" in video previews
+  * in AuthSessionService no more share the db connection (SQLite dont support it in multi-threads)
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Thu, 14 Feb 2013 10:30:00 +0100
+
+liberasme-cloud-cil (0.3.5-1) quantal; urgency=low
+
+  * Remove EXIF from image preview, and rotate using EXIF orientation if needed
+  * Add TTF and SVG mimetypes in StaticFiles
+  * Add connection logs in MessageService
+  * Support GZip compression for text/* and javascript
+  * AuthenticationService can now set the cookie when the session in GET
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Wed,  2 Jan 2012 15:37:00 +0200
+
+liberasme-cloud-cil (0.3.4-1) quantal; urgency=low
+
+  * Remove a possible dead lock un MessageService events
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Wed,  2 Jan 2012 15:37:00 +0200
+
+liberasme-cloud-cil (0.3.3-1) quantal; urgency=low
+
+  * Correct bug in FileLogger where minutes were used in place of month
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Tue,  1 Jan 2012 22:06:00 +0200
+
+liberasme-cloud-cil (0.3.2-1) quantal; urgency=low
+
+  * Correct problem with webshot
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Thu, 20 Dec 2012 17:55:00 +0200
+
+liberasme-cloud-cil (0.3.1-1) quantal; urgency=low
+
+  * User xvfb-run back
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Thu, 20 Dec 2012 14:01:00 +0200
+
+liberasme-cloud-cil (0.3-1) quantal; urgency=low
+
+  * Change the StorageService API
+  * Improve webshot
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Thu, 20 Dec 2012 14:01:00 +0200
+
+
+liberasme-cloud-cil (0.2.2-2) quantal; urgency=low
+
+  * Use xvfb with cutycapt for webshot
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Wed, 19 Dec 2012 15:25:00 +0200
+
+liberasme-cloud-cil (0.2.1-2) quantal; urgency=low
+
+  * Correct Lucene.Net embedding dependency problem
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Wed, 19 Dec 2012 15:25:00 +0200
+
+liberasme-cloud-cil (0.2.1-1) quantal; urgency=low
+
+  * Correct Lucene.Net embedding (previously not working)
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Wed, 19 Dec 2012 14:44:00 +0200
+
+liberasme-cloud-cil (0.2-1) precise; urgency=low
+
+  * Add GAC install and Strong Name signature
+  * Embed Lucene.Net
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Tue, 18 Dec 2012 15:32:00 +0200
+
+liberasme-cloud-cil (0.1-3) precise; urgency=low
+
+  * Change pkg-config to allow copy of DLL
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Tue, 20 Jun 2012 14:45:00 +0200
+
+liberasme-cloud-cil (0.1-2) precise; urgency=low
+
+  * Add dependency with ffmpeg
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Tue, 20 Jun 2012 14:35:00 +0200
+
+liberasme-cloud-cil (0.1-1) precise; urgency=low
+
+  * Initial release
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Thu, 28 Jun 2012 15:45:00 +0200

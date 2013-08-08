@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>10.0.0</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{33F8852A-7214-451D-A665-FF6148F89856}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>Erasme.Cloud</RootNamespace>
+    <AssemblyName>Erasme.Cloud</AssemblyName>
+    <SignAssembly>true</SignAssembly>
+    <ReleaseVersion>1.0</ReleaseVersion>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <newfilesearch>OnLoad</newfilesearch>
+    <AssemblyOriginatorKeyFile>Erasme.Cloud.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug</OutputPath>
+    <WarningLevel>4</WarningLevel>
+    <DebugSymbols>true</DebugSymbols>
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+    <DefineConstants>DEBUG</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release</OutputPath>
+    <WarningLevel>4</WarningLevel>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Web" />
+    <Reference Include="Mono.Data.Sqlite" />
+    <Reference Include="System.Data" />
+    <Reference Include="Erasme.Http, Version=1.0.0.0, Culture=neutral, PublicKeyToken=1e891f7ba33ed70f">
+      <Private>False</Private>
+      <Package>erasme-http-1.0</Package>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="Erasme.Cloud.Storage\StorageService.cs" />
+    <Compile Include="Erasme.Cloud.Logger\FileLogger.cs" />
+    <Compile Include="Erasme.Cloud.Preview\PreviewService.cs" />
+    <Compile Include="Erasme.Cloud.Preview\ImageVideoPreview.cs" />
+    <Compile Include="Erasme.Cloud.Preview\IPreview.cs" />
+    <Compile Include="Erasme.Cloud.Preview\PdfPreview.cs" />
+    <Compile Include="Erasme.Cloud.Preview\TextPreview.cs" />
+    <Compile Include="Erasme.Cloud.Audio\AudioService.cs" />
+    <Compile Include="Erasme.Cloud.Mime\MimeIconService.cs" />
+    <Compile Include="Erasme.Cloud.Google\GoogleAuthenticationService.cs" />
+    <Compile Include="Erasme.Cloud.Storage\IStorageRights.cs" />
+    <Compile Include="Erasme.Cloud.Authentication\AuthSessionPlugin.cs" />
+    <Compile Include="Erasme.Cloud.HttpProxy\ProxyService.cs" />
+    <Compile Include="Erasme.Cloud.Message\MessageService.cs" />
+    <Compile Include="Erasme.Cloud.Cache\Cache.cs" />
+    <Compile Include="Erasme.Cloud.Authentication\AuthSessionService.cs" />
+    <Compile Include="Erasme.Cloud.Mail\SendmailService.cs" />
+    <Compile Include="Erasme.Cloud.Pdf\PdfService.cs" />
+    <Compile Include="Erasme.Cloud.StaticFiles\StaticFilesService.cs" />
+    <Compile Include="Erasme.Cloud.Utils\ResourcesLocker.cs" />
+    <Compile Include="Erasme.Cloud.Video\VideoService.cs" />
+    <Compile Include="Erasme.Cloud.Preview\UrlPreview.cs" />
+    <Compile Include="Erasme.Cloud.Facebook\FacebookAuthenticationService.cs" />
+    <Compile Include="Erasme.Cloud.Manage\ManageService.cs" />
+    <Compile Include="Erasme.Cloud.Webshot\WebshotService.cs" />
+    <Compile Include="Erasme.Cloud.Queue\QueueService.cs" />
+    <Compile Include="Erasme.Cloud.Logger\ILogger.cs" />
+    <Compile Include="Erasme.Cloud.Logger\LoggerList.cs" />
+    <Compile Include="Erasme.Cloud.Logger\ConsoleLogger.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <ItemGroup>
+    <Folder Include="Erasme.Cloud.Storage\" />
+    <Folder Include="Erasme.Cloud.Logger\" />
+    <Folder Include="Erasme.Cloud.Preview\" />
+    <Folder Include="Erasme.Cloud.Utils\" />
+    <Folder Include="Erasme.Cloud.Audio\" />
+    <Folder Include="Erasme.Cloud.Mime\" />
+    <Folder Include="Erasme.Cloud.Google\" />
+    <Folder Include="Erasme.Cloud.Authentication\" />
+    <Folder Include="Erasme.Cloud.HttpProxy\" />
+    <Folder Include="Erasme.Cloud.Message\" />
+    <Folder Include="Erasme.Cloud.Cache\" />
+    <Folder Include="Erasme.Cloud.Mail\" />
+    <Folder Include="Erasme.Cloud.Pdf\" />
+    <Folder Include="Erasme.Cloud.StaticFiles\" />
+    <Folder Include="Erasme.Cloud.Video\" />
+    <Folder Include="Erasme.Cloud.Facebook\" />
+    <Folder Include="Erasme.Cloud.Queue\" />
+    <Folder Include="Erasme.Cloud.Manage\" />
+    <Folder Include="Erasme.Cloud.Webshot\" />
+    <Folder Include="share\" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Erasme.Cloud.snk" />
+    <None Include="share\webshot.js" />
+  </ItemGroup>
+</Project>

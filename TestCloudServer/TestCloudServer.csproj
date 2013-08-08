@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>10.0.0</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{41885CAD-4A24-4E3E-BCC0-041C9A7F3146}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>TestCloudServer</RootNamespace>
+    <AssemblyName>TestCloudServer</AssemblyName>
+    <ReleaseVersion>1.0</ReleaseVersion>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug</OutputPath>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Release</OutputPath>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="Erasme.Http, Version=1.0.0.0, Culture=neutral, PublicKeyToken=1e891f7ba33ed70f">
+      <Private>False</Private>
+      <Package>erasme-http-1.0</Package>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Main.cs" />
+    <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="TestCloudServer.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <ItemGroup>
+    <Folder Include="data\" />
+    <Folder Include="data\files\" />
+    <Folder Include="data\mimeicon\" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="data\files\test.txt" />
+    <None Include="data\mimeicon\application%252Fvnd.ms-excel.png" />
+    <None Include="data\mimeicon\application%252fmsword.png" />
+    <None Include="data\mimeicon\application%252fpdf.png" />
+    <None Include="data\mimeicon\application%252fvnd.openxmlformats-officedocument.wordprocessingml.document.png" />
+    <None Include="data\mimeicon\application%252fzip.png" />
+    <None Include="data\mimeicon\audio.png" />
+    <None Include="data\mimeicon\default.png" />
+    <None Include="data\mimeicon\image%252fjpeg.png" />
+    <None Include="data\mimeicon\image%252fpng.png" />
+    <None Include="data\mimeicon\image.png" />
+    <None Include="data\mimeicon\text.png" />
+    <None Include="data\mimeicon\video.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Erasme.Cloud\Erasme.Cloud.csproj">
+      <Project>{33F8852A-7214-451D-A665-FF6148F89856}</Project>
+      <Name>Erasme.Cloud</Name>
+    </ProjectReference>
+  </ItemGroup>
+</Project>

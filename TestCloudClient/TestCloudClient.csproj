@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>10.0.0</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{14A34A9E-8812-4080-89FF-F54563F51DFA}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>TestCloudClient</RootNamespace>
+    <AssemblyName>TestCloudClient</AssemblyName>
+    <ReleaseVersion>1.0</ReleaseVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug</OutputPath>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Release</OutputPath>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="Erasme.Http">
+      <HintPath>..\..\..\liberasme-http-cil\Erasme.Http\bin\Debug\Erasme.Http.dll</HintPath>
+      <Package>erasme-http-1.0</Package>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Main.cs" />
+    <Compile Include="AssemblyInfo.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <ItemGroup>
+    <Folder Include="data\" />
+    <Folder Include="data\image\" />
+    <Folder Include="data\sound\" />
+    <Folder Include="data\video\" />
+    <Folder Include="data\document\" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="data\sound\sound.wav" />
+    <None Include="data\sound\sound.mp3" />
+    <None Include="data\sound\sound.ogg" />
+    <None Include="data\document\text.txt" />
+    <None Include="data\image\landscape.jpg" />
+  </ItemGroup>
+</Project>

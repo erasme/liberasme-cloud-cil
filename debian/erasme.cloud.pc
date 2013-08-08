@@ -1,0 +1,10 @@
+Name: Erasme.Cloud
+Description: Erasme.Cloud
+Version: 1.0
+
+prefix=/usr
+assemblies_dir=${prefix}/lib/cli/erasme-cloud-1.0/
+Libraries=${assemblies_dir}/Erasme.Cloud.dll
+
+Requires: 
+Libs: -r:${assemblies_dir}/Erasme.Cloud.dll
