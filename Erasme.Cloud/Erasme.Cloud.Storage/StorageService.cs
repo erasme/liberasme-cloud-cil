@@ -1322,7 +1322,8 @@ namespace Erasme.Cloud.Storage
 					GetStorageInfo(dbcon, transaction, storage, out quota, out used, out ctime, out mtime, out storageRev);
 
 					res = GetFileInfo(dbcon, transaction, storage, file, depth);
-					res["storage_rev"] = storageRev;
+					if(res != null)
+						res["storage_rev"] = storageRev;
 					// commit the transaction
 					transaction.Commit();
 				}

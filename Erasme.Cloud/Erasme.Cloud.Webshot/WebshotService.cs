@@ -46,6 +46,42 @@ namespace Erasme.Cloud.Webshot
 		long timeout;
 		string tmpDir;
 
+		const string webshotScript = @"
+var page = require('webpage').create(),
+    system = require('system'),
+    address, output, size, delay;
+
+if(system.args.length < 3 || system.args.length > 5) {
+	console.log('Usage: webshot.js URL filename [widthxheight] [delayms]');
+	phantom.exit(1);
+}
+else {
+	address = system.args[1];
+	output = system.args[2];
+	page.viewportSize = { width: 1024, height: 768 };
+	if(system.args.length > 3) {
+		size = system.args[3].split('x');
+		page.zoomFactor = (new Number(size[0]))/1024;
+		page.clipRect = { top: 0, left: 0, width: new Number(size[0]), height: new Number(size[1]) };
+		page.viewportSize = { width: new Number(size[0]), height: new Number(size[1]) };
+    }
+	if(system.args.length > 4)
+		delay = new Number(system.args[4]);
+    page.open(address, function (status) {
+        if (status !== 'success') {
+			// Unable to load the address!
+			phantom.exit(1);
+        }
+		else {
+            window.setTimeout(function () {
+                page.render(output);
+                phantom.exit();
+            }, delay);
+        }
+    });
+}
+";
+
 		public WebshotService(string basepath, int width, int height, long timeout, string tmpDir)
 		{
 			basePath = basepath;
@@ -63,7 +99,7 @@ namespace Erasme.Cloud.Webshot
 
 			string args = BuildArguments(new string[]{
 				"--ignore-ssl-errors=yes",
-				"/usr/share/liberasme-cloud-cil/webshot.js",
+				"/dev/stdin",
 				url,
 				filename,
 				width+"x"+height,
@@ -72,10 +108,16 @@ namespace Erasme.Cloud.Webshot
 
 			ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/phantomjs", args);
 			startInfo.RedirectStandardOutput = true;
+			startInfo.RedirectStandardInput = true;
 			startInfo.UseShellExecute = false;
 			Process process = new Process();
 			process.StartInfo = startInfo;
 			process.Start();
+
+			// write the JS script to stdin
+			process.StandardInput.Write(webshotScript);
+			process.StandardInput.Close();
+
 			process.WaitForExit();
 			int exitCode = process.ExitCode;
 			process.Dispose();

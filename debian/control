@@ -7,6 +7,6 @@ Standards-Version: 3.9.2
 
 Package: liberasme-cloud1.0-cil
 Architecture: all
-Depends: ${cli:Depends}, liberasme-http1.0-cil, libmono-sqlite4.0-cil, ffmpegstatic, mediainfo, poppler-utils, phantomjs, imagemagick, unoconv, libreoffice, exiv2
+Depends: ${cli:Depends}, liberasme-http1.0-cil, libmono-sqlite4.0-cil, ffmpegstatic, mediainfo, poppler-utils, phantomjs, imagemagick, unoconv, libreoffice
 Description: Web services library for WebApps
  Library to provide Web services for Web applications

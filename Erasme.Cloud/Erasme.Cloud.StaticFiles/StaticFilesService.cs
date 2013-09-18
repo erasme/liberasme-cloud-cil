@@ -86,7 +86,7 @@ namespace Erasme.Cloud.StaticFiles
 					context.Response.Headers["content-type"] = mimetype;
 //					context.Response.Headers["cache-control"] = "max-age="+cacheDuration;
 
-					if((mimetype == "application/x-font-woff") || (mimetype == "font/ttf") || (mimetype == "application/vnd.ms-fontobject")) {
+					if((mimetype == "application/font-woff") || (mimetype == "font/ttf") || (mimetype == "application/vnd.ms-fontobject")) {
 						context.Response.StatusCode = 200;
 						context.Response.Headers["cache-control"] = "max-age="+cacheDuration;
 						context.Response.Content = new FileContent(fullPath);
