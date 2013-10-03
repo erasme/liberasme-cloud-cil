@@ -57,6 +57,8 @@ namespace Erasme.Cloud.Manage
 				if(client.Context != null) {
 					jsonClient["path"] = client.Context.Request.AbsolutePath;
 					jsonClient["user"] = client.Context.User;
+					if(client.Context.Request.Headers.ContainsKey("x-forwarded-for"))
+						jsonClient["x-forwarded-for"] = client.Context.Request.Headers["x-forwarded-for"];
 				}
 				clients.Add(jsonClient);
 			}

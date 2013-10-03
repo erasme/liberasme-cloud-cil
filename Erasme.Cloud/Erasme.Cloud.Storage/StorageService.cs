@@ -506,20 +506,13 @@ namespace Erasme.Cloud.Storage
 			string tmpFile = temporaryDirectory+"/"+Guid.NewGuid().ToString();
 
 			using(FileStream fileStream = File.Create(tmpFile)) {
-				byte[] buffer = new byte[4096];
 				// get the file
-				System.Net.WebRequest webRequest = System.Net.WebRequest.Create(downloadUrl);
-				webRequest.Method = "GET";
-				System.Net.HttpWebRequest httpWebRequest = webRequest as System.Net.HttpWebRequest;
-				if(httpWebRequest != null)
-					httpWebRequest.AllowAutoRedirect = true;
-				System.Net.HttpWebResponse response = webRequest.GetResponse() as System.Net.HttpWebResponse;
-				using(Stream stream = response.GetResponseStream()) {
-					int readCount = 0;
-					while((readCount = stream.Read(buffer, 0, buffer.Length)) > 0)
-						fileStream.Write(buffer, 0, readCount);
+				using(WebRequest request = new WebRequest(downloadUrl, allowAutoRedirect: true)) {
+					HttpClientResponse response = request.GetResponse();
+					if(response.StatusCode != 200)
+						throw new Exception("URL download fails HTTP (url: "+downloadUrl+", status: " + response.StatusCode + ")");
+					response.InputStream.CopyTo(fileStream);
 				}
-				response.Close();
 			}
 			return CreateFile(storage, parent, name, mimetype, tmpFile, define, signal);
 		}
@@ -1511,6 +1504,7 @@ namespace Erasme.Cloud.Storage
 				string mimetype = null;
 				string tmpFile = null;
 				JsonValue define = new JsonObject();
+				string fileContentType = null;
 	
 				string contentType = context.Request.Headers["content-type"];
 				if(contentType.IndexOf("multipart/form-data") >= 0) {
@@ -1537,8 +1531,8 @@ namespace Erasme.Cloud.Storage
 							}
 							if((filename == null) && part.Headers.ContentDisposition.ContainsKey("filename"))
 								filename = part.Headers.ContentDisposition["filename"];
-							if((mimetype == null) && part.Headers.ContainsKey("content-type"))
-								mimetype = part.Headers["content-type"];
+							if(part.Headers.ContainsKey("content-type"))
+								fileContentType = part.Headers["content-type"];
 						}
 					}
 				}
@@ -1554,8 +1548,14 @@ namespace Erasme.Cloud.Storage
 					if(mimetype == null)
 						mimetype = "application/octet-stream";
 				}
-				else if(mimetype == null)
+				else if(mimetype == null) {
+					// if mimetype was not given in the define part, decide it from
+					// the file extension
 					mimetype = FileContent.MimeType(filename);
+					// if not found from the file extension, decide it from the Content-Type
+					if((mimetype == "application/octet-stream") && (fileContentType != null))
+						mimetype = fileContentType;
+				}
 
 				long file = CreateFile(storage, parent, filename, mimetype, tmpFile, define, true);
 										

@@ -76,9 +76,14 @@ namespace Erasme.Cloud.Preview
 			}
 			if(file != pdfFile)
 				File.Delete(pdfFile);
-			if(File.Exists(tmpFile+"-01.jpg"))
-				return tmpFile+"-01.jpg";
-			return null;
+			if(File.Exists(tmpFile + "-1.jpg"))
+				return tmpFile + "-1.jpg";
+			else if(File.Exists(tmpFile + "-01.jpg"))
+				return tmpFile + "-01.jpg";
+			else if(File.Exists(tmpFile + "-001.jpg"))
+				return tmpFile + "-001.jpg";
+			else
+				return null;
 		}
 				
 		static string BuildArguments(string[] args)

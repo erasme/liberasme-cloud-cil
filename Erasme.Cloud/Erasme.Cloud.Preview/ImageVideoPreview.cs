@@ -47,10 +47,21 @@ namespace Erasme.Cloud.Preview
 		public string Process(string file, string mimetype, int width, int height, out PreviewFormat format, out string error)
 		{
 			error = null;
+			bool deleteFile = false;
 			string tmpFile = temporaryDirectory+"/"+Guid.NewGuid().ToString();
 			
 			ProcessStartInfo startInfo;
-			if(mimetype.StartsWith("image/")) {
+			if(mimetype.StartsWith("image/") || mimetype.StartsWith("audio/")) {
+				if(mimetype.StartsWith("audio/")) {
+					if(!ExtractCover(file, tmpFile)) {
+						format = PreviewFormat.JPEG;
+						return null;
+					}
+					deleteFile = true;
+					file = tmpFile;
+					tmpFile = temporaryDirectory+"/"+Guid.NewGuid().ToString();
+				}
+
 				double naturalWidth;
 				double naturalHeight;
 				GetImageSize(file, out naturalWidth, out naturalHeight);
@@ -170,6 +181,10 @@ namespace Erasme.Cloud.Preview
 				process.StartInfo = startInfo;
 				process.Start();
 				process.WaitForExit();
+
+				if(deleteFile)
+					File.Delete(file);
+
 				if(process.ExitCode == 0)
 					return tmpFile;
 				else {
@@ -328,6 +343,48 @@ namespace Erasme.Cloud.Preview
 				}
 			}
 			return duration;
+		}
+
+		public static bool HasCover(string file)
+		{
+			bool hasCover = false;
+			// get media info
+			string args = BuildArguments(new string[]{ "--Inform=General;%Cover%", file });
+			ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/mediainfo", args);
+			startInfo.RedirectStandardError = true;
+			startInfo.RedirectStandardOutput = true;
+			startInfo.UseShellExecute = false;
+
+			using(Process process = new Process()) {
+				process.StartInfo = startInfo;
+				process.Start();
+				process.WaitForExit();
+				if(process.ExitCode == 0) {
+					string lines = process.StandardOutput.ReadToEnd().TrimEnd(' ', '\n');
+					hasCover = lines.ToLower().Contains("yes");
+				}
+			}
+			return hasCover;
+		}
+
+		public static bool ExtractCover(string file, string toFile)
+		{
+			// get media info
+			string args = BuildArguments(new string[]{ "-i", file, "-an", "-vcodec", "copy", "-f", "image2", toFile });
+			ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/ffmpegstatic", args);
+			startInfo.RedirectStandardError = true;
+			startInfo.RedirectStandardOutput = true;
+			startInfo.UseShellExecute = false;
+
+			using(Process process = new Process()) {
+				process.StartInfo = startInfo;
+				process.Start();
+				process.WaitForExit();
+				if(process.ExitCode != 0) {
+					return false;
+				}
+			}
+			return File.Exists(toFile);
 		}
 
 		static string BuildArguments(string[] args)

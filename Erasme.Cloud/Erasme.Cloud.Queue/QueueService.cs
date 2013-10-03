@@ -27,9 +27,8 @@
 //
 
 using System;
-using System.Net;
-using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using Erasme.Http;
 using Erasme.Json;
 

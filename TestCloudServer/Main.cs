@@ -52,6 +52,7 @@ namespace TestCloudServer
 			PathMapper mapper = new PathMapper();
 			server.Add(mapper);
 
+			mapper.Add("/proxy", new Erasme.Cloud.HttpProxy.ProxyService());
 			mapper.Add("/files", new Erasme.Cloud.StaticFiles.StaticFilesService("../../data/files/", CacheDuration));
 			mapper.Add("/mimeicon", new Erasme.Cloud.Mime.MimeIconService("../../data/mimeicon/", CacheDuration));
 			mapper.Add("/sendmail", new Erasme.Cloud.Mail.SendmailService(SmtpServer));

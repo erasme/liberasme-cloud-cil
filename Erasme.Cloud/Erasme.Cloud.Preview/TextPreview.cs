@@ -55,6 +55,7 @@ namespace Erasme.Cloud.Preview
 			string tmpFile = temporaryDirectory+"/"+Guid.NewGuid().ToString();
 			
 			string args = BuildArguments(new string[]{
+				"-density", "120", "-pointsize", "50",
 				"-thumbnail", width+"x"+height,
 				"text:"+file+"[0]",
 				"png:"+tmpFile

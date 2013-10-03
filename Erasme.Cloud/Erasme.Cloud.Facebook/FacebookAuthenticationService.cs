@@ -28,7 +28,6 @@
 
 using System;
 using System.IO;
-using System.Net;
 using System.Text;
 using System.Collections.Generic;
 using Erasme.Http;
@@ -99,53 +98,43 @@ namespace Erasme.Cloud.Facebook
 		JsonValue GetTokenFromCode(string code)
 		{
 			// get the access token
-			// https://developers.facebook.com/docs/howtos/login/server-side-login/				
-			System.Net.WebRequest webRequest = System.Net.WebRequest.Create(
+			// https://developers.facebook.com/docs/howtos/login/server-side-login/		
+			JsonValue token = null;
+
+			using(WebRequest request = new WebRequest(
 				"https://graph.facebook.com/oauth/access_token?"+
 				"code="+HttpUtility.UrlEncode(code)+"&"+
 				"client_id="+HttpUtility.UrlEncode(ClientId)+"&"+
 				"client_secret="+HttpUtility.UrlEncode(ClientSecret)+"&"+
-				"redirect_uri="+HttpUtility.UrlEncode(RedirectUri));
-			HttpWebRequest httpWebRequest = webRequest as HttpWebRequest;
-			if(httpWebRequest != null)
-				httpWebRequest.AllowAutoRedirect = true;
-			webRequest.Method = "GET";
-				
-			HttpWebResponse response = webRequest.GetResponse() as HttpWebResponse;
-			Stream responseStream = response.GetResponseStream();
-			StreamReader reader = new StreamReader(responseStream);
-
-			string paramsString = reader.ReadToEnd();
-			string[] tab = paramsString.Split('&');
-			JsonValue jsonToken = new JsonObject();
-			for(int i = 0; i < tab.Length; i++) {
-				string[] tab2 = tab[i].Split('=');
-				if(tab2.Length == 2)
-					jsonToken[tab2[0]] = tab2[1];
+				"redirect_uri="+HttpUtility.UrlEncode(RedirectUri),
+				allowAutoRedirect: true)) {
+				HttpClientResponse response = request.GetResponse();
+				if(response.StatusCode == 200) {
+					string paramsString = response.ReadAsString();
+					string[] tab = paramsString.Split('&');
+					token = new JsonObject();
+					for(int i = 0; i < tab.Length; i++) {
+						string[] tab2 = tab[i].Split('=');
+						if(tab2.Length == 2)
+							token[tab2[0]] = tab2[1];
+					}
+				}
 			}
-			reader.Close();
-			responseStream.Close();
-			return jsonToken;
+			return token;
 		}
 		
 		JsonValue GetUserProfile(JsonValue token)
-		{			
+		{
 			// get the user info API: https://developers.facebook.com/docs/reference/api/user/
-			System.Net.WebRequest webRequest = System.Net.WebRequest.Create(
+			JsonValue userProfile = null;
+			using(WebRequest request = new WebRequest(
 				"https://graph.facebook.com/me?access_token="+HttpUtility.UrlEncode((string)token["access_token"])+
-				"&fields=picture,first_name,last_name");
-			HttpWebRequest httpWebRequest = webRequest as HttpWebRequest;
-			if(httpWebRequest != null)
-				httpWebRequest.AllowAutoRedirect = true;
-			webRequest.Method = "GET";
-			HttpWebResponse response = webRequest.GetResponse() as HttpWebResponse;
-			Stream responseStream = response.GetResponseStream();
-			StreamReader reader = new StreamReader(responseStream);
-			string jsonString = reader.ReadToEnd();
-			reader.Close();
-			responseStream.Close();
-
-			return JsonValue.Parse(jsonString);
+				"&fields=picture,first_name,last_name", allowAutoRedirect: true)) {
+				HttpClientResponse response = request.GetResponse();
+				if(response.StatusCode == 200)
+					userProfile = response.ReadAsJson();
+			}
+			return userProfile;
 		}
 		
 		public override void ProcessRequest(HttpContext context)

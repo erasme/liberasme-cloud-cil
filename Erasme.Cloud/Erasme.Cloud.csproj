@@ -31,12 +31,10 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
-    <Reference Include="System.Web" />
     <Reference Include="Mono.Data.Sqlite" />
     <Reference Include="System.Data" />
-    <Reference Include="Erasme.Http, Version=1.0.0.0, Culture=neutral, PublicKeyToken=1e891f7ba33ed70f">
-      <Private>False</Private>
-      <Package>erasme-http-1.0</Package>
+    <Reference Include="Erasme.Http">
+      <HintPath>..\..\..\liberasme-http-cil\liberasme-http-cil\Erasme.Http\bin\Debug\Erasme.Http.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -70,6 +68,7 @@
     <Compile Include="Erasme.Cloud.Logger\ILogger.cs" />
     <Compile Include="Erasme.Cloud.Logger\LoggerList.cs" />
     <Compile Include="Erasme.Cloud.Logger\ConsoleLogger.cs" />
+    <Compile Include="Erasme.Cloud.Utils\LimitedConcurrencyTaskScheduler.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
@@ -92,10 +91,8 @@
     <Folder Include="Erasme.Cloud.Queue\" />
     <Folder Include="Erasme.Cloud.Manage\" />
     <Folder Include="Erasme.Cloud.Webshot\" />
-    <Folder Include="share\" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Erasme.Cloud.snk" />
-    <None Include="share\webshot.js" />
   </ItemGroup>
 </Project>

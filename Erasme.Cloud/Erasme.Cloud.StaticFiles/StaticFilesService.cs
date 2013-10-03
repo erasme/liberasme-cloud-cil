@@ -89,6 +89,7 @@ namespace Erasme.Cloud.StaticFiles
 					if((mimetype == "application/font-woff") || (mimetype == "font/ttf") || (mimetype == "application/vnd.ms-fontobject")) {
 						context.Response.StatusCode = 200;
 						context.Response.Headers["cache-control"] = "max-age="+cacheDuration;
+						context.Response.SupportRanges = true;
 						context.Response.Content = new FileContent(fullPath);
 					}
 					else {
@@ -102,6 +103,7 @@ namespace Erasme.Cloud.StaticFiles
 						}
 						else {
 							context.Response.StatusCode = 200;
+							context.Response.SupportRanges = true;
 							context.Response.Content = new FileContent(fullPath);
 						}
 					}

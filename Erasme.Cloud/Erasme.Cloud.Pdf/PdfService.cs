@@ -28,7 +28,6 @@
 
 using System;
 using System.IO;
-using System.Net;
 using System.Text;
 using System.Data;
 using System.Threading;
@@ -117,7 +116,8 @@ namespace Erasme.Cloud.Pdf
 			        (mimetype == "application/vnd.oasis.opendocument.text") ||
 			        (mimetype == "application/vnd.oasis.opendocument.presentation") ||
 					(mimetype == "application/vnd.oasis.opendocument.graphics") ||
-						// Microsoft PowerPoint
+			        (mimetype == "application/vnd.sun.xml.writer") ||
+					// Microsoft PowerPoint
 					(mimetype == "application/vnd.ms-powerpoint") ||
 					// Microsoft Word
 					(mimetype == "application/msword") ||

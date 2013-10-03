@@ -2,8 +2,11 @@ liberasme-cloud-cil (1.0.1) raring; urgency=low (NOT YET RELEASED)
 
   * Provide a limited concurrency task scheduler
   * Embed webshot JS script
+  * Use Erasme.Http.HttpClient in place of System.Net.WebRequest
+  * Added bytes ranges support for StaticFiles
+  * Add preview of audio files with the cover
 
- -- Daniel Lacroix <dlacroix@erasme.org>  Thu,  8 Aug 2013 16:31:00 +0200
+ -- Daniel Lacroix <dlacroix@erasme.org>  Wed,  2 Oct 2013 16:22:00 +0200
 
 liberasme-cloud-cil (1.0.0) raring; urgency=low
 

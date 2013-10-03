@@ -28,7 +28,6 @@
 
 using System;
 using System.IO;
-using System.Net;
 using System.Text;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -43,27 +42,29 @@ namespace Erasme.Cloud.HttpProxy
 		{
 		}
 
-		public async Task ProcessRequestAsync(HttpContext context)
+		public Task ProcessRequestAsync(HttpContext context)
 		{
 			if((context.Request.Method == "GET") && context.Request.QueryString.ContainsKey("url")) {
-				System.Net.WebRequest webRequest = System.Net.WebRequest.Create(context.Request.QueryString["url"]);
+
 				string contentType = null;
 				if(context.Request.QueryString.ContainsKey("contenttype"))
 					contentType = context.Request.QueryString["contenttype"];
-				webRequest.Method = "GET";
-				HttpWebRequest httpWebRequest = webRequest as HttpWebRequest;
-				if(httpWebRequest != null)
-					httpWebRequest.AllowAutoRedirect = true;
-				HttpWebResponse response = await webRequest.GetResponseAsync() as HttpWebResponse;
 
-				if(contentType == null)
-					contentType = response.ContentType;
-
-				context.Response.StatusCode = (int)response.StatusCode;
-				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
-				context.Response.Headers["content-type"] = contentType;
-				context.Response.Content = new StreamContent(response.GetResponseStream());
+				using(WebRequest request = new WebRequest(context.Request.QueryString["url"], allowAutoRedirect: true)) {
+					HttpClientResponse response = request.GetResponse();
+					if(contentType == null)
+						contentType = response.Headers["content-type"];
+					context.Response.StatusCode = response.StatusCode;
+					context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
+					context.Response.Headers["content-type"] = contentType;
+					context.Response.Content = new StreamContent(response.InputStream);
+					// force to send the result now. Needed to do this before
+					// closing the HttpClient because after, the response.InputStream is
+					// no more available
+					context.SendResponse();
+				}
 			}
+			return Task.FromResult<Object>(null);
 		}
 	}
 }

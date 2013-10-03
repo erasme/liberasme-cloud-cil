@@ -24,8 +24,7 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="Erasme.Http">
-      <HintPath>..\..\..\liberasme-http-cil\Erasme.Http\bin\Debug\Erasme.Http.dll</HintPath>
-      <Package>erasme-http-1.0</Package>
+      <HintPath>..\..\..\liberasme-http-cil\liberasme-http-cil\Erasme.Http\bin\Debug\Erasme.Http.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>

@@ -28,7 +28,6 @@
 
 using System;
 using System.IO;
-using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -92,7 +91,7 @@ namespace Erasme.Cloud.Audio
 
 				ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/ffmpegstatic", BuildArguments(new string[] {
 					"-loglevel", "quiet", "-threads", "1",
-					"-i", filepath,
+					"-i", filepath, "-map", "a",
 					"-f", "mp3", "-ab", "64k", 
 					"-ar", "44100", "-ac", "1",
 					audioFile
@@ -139,7 +138,7 @@ namespace Erasme.Cloud.Audio
 
 				ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/ffmpegstatic", BuildArguments(new string[]{
 					"-loglevel", "quiet", "-threads", "1",
-					"-i", filepath,
+					"-i", filepath, "-map", "a",
 					"-f", "ogg", "-ab", "64k", 
 					"-ar", "44100", "-ac", "1", "-acodec", "libvorbis",
 					audioFile

@@ -112,47 +112,33 @@ namespace Erasme.Cloud.Google
 		JsonValue GetTokenFromCode(string code)
 		{
 			// get the access token
-			System.Net.WebRequest webRequest = System.Net.WebRequest.Create("https://accounts.google.com/o/oauth2/token");
-			System.Net.HttpWebRequest httpWebRequest = webRequest as System.Net.HttpWebRequest;
-			if(httpWebRequest != null)
-				httpWebRequest.AllowAutoRedirect = true;
-			webRequest.Method = "POST";
-			byte[] byteArray = Encoding.UTF8.GetBytes(
-				"code="+HttpUtility.UrlEncode(code)+"&"+
-				"client_id="+HttpUtility.UrlEncode(ClientId)+"&"+
-				"client_secret="+HttpUtility.UrlEncode(ClientSecret)+"&"+
-				"redirect_uri="+HttpUtility.UrlEncode(RedirectUri)+"&"+
-				"grant_type=authorization_code");
-			webRequest.ContentType = "application/x-www-form-urlencoded";
-			webRequest.ContentLength = byteArray.Length;
-			Stream stream = webRequest.GetRequestStream();
-			stream.Write(byteArray, 0, byteArray.Length);
-			stream.Close();
-				
-			System.Net.HttpWebResponse response = webRequest.GetResponse() as System.Net.HttpWebResponse;
-			Stream responseStream = response.GetResponseStream();
-			StreamReader reader = new StreamReader(responseStream);
-			string jsonString = reader.ReadToEnd();
-			reader.Close();
-			responseStream.Close();
-			return JsonValue.Parse(jsonString);
+			JsonValue token = null;
+			using(WebRequest request = new WebRequest("https://accounts.google.com/o/oauth2/token", allowAutoRedirect: true)) {
+				request.Method = "POST";
+				request.Headers["content-type"] = "application/x-www-form-urlencoded";
+				request.Content = new StringContent(
+					"code=" + HttpUtility.UrlEncode(code) + "&" +
+					"client_id=" + HttpUtility.UrlEncode(ClientId) + "&" +
+					"client_secret=" + HttpUtility.UrlEncode(ClientSecret) + "&" +
+					"redirect_uri=" + HttpUtility.UrlEncode(RedirectUri) + "&" +
+					"grant_type=authorization_code");
+				HttpClientResponse response = request.GetResponse();
+				if(response.StatusCode == 200)
+					token = response.ReadAsJson();
+			}
+			return token;
 		}
 		
 		JsonValue GetUserProfile(JsonValue token)
-		{			
+		{
 			// get the user info
-			System.Net.WebRequest webRequest = System.Net.WebRequest.Create("https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token="+HttpUtility.UrlEncode((string)token["access_token"]));
-			System.Net.HttpWebRequest httpWebRequest = webRequest as System.Net.HttpWebRequest;
-			if(httpWebRequest != null)
-				httpWebRequest.AllowAutoRedirect = true;
-			webRequest.Method = "GET";
-			System.Net.HttpWebResponse response = webRequest.GetResponse() as System.Net.HttpWebResponse;
-			Stream responseStream = response.GetResponseStream();
-			StreamReader reader = new StreamReader(responseStream);
-			string jsonString = reader.ReadToEnd();
-			reader.Close();
-			responseStream.Close();
-			return JsonValue.Parse(jsonString);
+			JsonValue userProfile = null;
+			using(WebRequest request = new WebRequest("https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token="+HttpUtility.UrlEncode((string)token["access_token"]), allowAutoRedirect: true)) {
+				HttpClientResponse response = request.GetResponse();
+				if(response.StatusCode == 200)
+					userProfile = response.ReadAsJson();
+			}
+			return userProfile;
 		}
 		
 		public override void ProcessRequest(HttpContext context)

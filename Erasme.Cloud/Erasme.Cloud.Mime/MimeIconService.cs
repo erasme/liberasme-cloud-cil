@@ -28,7 +28,6 @@
 
 using System;
 using System.IO;
-using System.Net;
 using System.Text;
 using System.Threading;
 using System.Collections.Generic;
@@ -64,11 +63,7 @@ namespace Erasme.Cloud.Mime
 						mimetype = String.Empty;
 				}
 
-				Console.WriteLine("MimeIconService mimetype: "+mimetype);
-
 				string file = basedir+"/"+HttpUtility.UrlEncode(mimetype)+".png";
-
-				Console.WriteLine("MimeIconService test file: "+file);
 
 				if(!File.Exists(file)) {
 					string[] splitted = mimetype.Split('/');

@@ -28,7 +28,6 @@
 
 using System;
 using System.IO;
-using System.Net;
 using System.Text;
 using System.Threading;
 using System.Diagnostics;
@@ -254,7 +253,7 @@ namespace Erasme.Cloud.Preview
 			previewMimetype = null;
 			previewPath = null;
 
-			if(mimetype.StartsWith("image/") || mimetype.StartsWith("video/"))
+			if(mimetype.StartsWith("image/") || mimetype.StartsWith("video/") || mimetype.StartsWith("audio/"))
 				preview = new ImageVideoPreview(temporaryDirectory);
 			else if(Pdf.PdfService.IsPdfCompatible(mimetype))
 				preview = new PdfPreview(temporaryDirectory);

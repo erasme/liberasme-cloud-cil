@@ -24,9 +24,11 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
-    <Reference Include="Erasme.Http, Version=1.0.0.0, Culture=neutral, PublicKeyToken=1e891f7ba33ed70f">
-      <Private>False</Private>
-      <Package>erasme-http-1.0</Package>
+    <Reference Include="Erasme.Cloud">
+      <HintPath>..\Erasme.Cloud\bin\Debug\Erasme.Cloud.dll</HintPath>
+    </Reference>
+    <Reference Include="Erasme.Http">
+      <HintPath>..\..\..\liberasme-http-cil\liberasme-http-cil\Erasme.Http\bin\Debug\Erasme.Http.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -54,11 +56,5 @@
     <None Include="data\mimeicon\image.png" />
     <None Include="data\mimeicon\text.png" />
     <None Include="data\mimeicon\video.png" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Erasme.Cloud\Erasme.Cloud.csproj">
-      <Project>{33F8852A-7214-451D-A665-FF6148F89856}</Project>
-      <Name>Erasme.Cloud</Name>
-    </ProjectReference>
   </ItemGroup>
 </Project>
