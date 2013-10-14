@@ -238,6 +238,7 @@ namespace Erasme.Cloud.Authentication
 					permanent = (bool)json["permanent"];
 
 				context.Response.StatusCode = 200;
+				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				context.Response.Content = new JsonContent(Create(user, permanent));
 			}
 			// GET /?permanent=[true|false]&limit=100 search for sessions
@@ -250,6 +251,7 @@ namespace Erasme.Cloud.Authentication
 					limit = Math.Max(0, Math.Min(1000, Convert.ToInt32(context.Request.QueryString["limit"])));
 
 				context.Response.StatusCode = 200;
+				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				context.Response.Content = new JsonContent(SearchSessions(permanent, limit));
 			}
 			// GET /current get the current session
@@ -261,18 +263,21 @@ namespace Erasme.Cloud.Authentication
 					sessionId = context.Request.Cookies[cookieKey];
 				if(sessionId == null) {
 					context.Response.StatusCode = 400;
+					context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 					context.Response.Content = new StringContent("No session given to search for");
 				}
 				else {
 					JsonValue session = Get(sessionId);
 					if(session == null) {
 						context.Response.StatusCode = 404;
+						context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 						context.Response.Content = new StringContent("Session '"+sessionId+"' not found or expired");
 					}
 					else {
 						if(context.Request.QueryString.ContainsKey("setcookie"))
 							context.Response.Headers["set-cookie"] = cookieKey+"="+sessionId+"; Path=/";
 						context.Response.StatusCode = 200;
+						context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 						context.Response.Content = new JsonContent(session);
 					}
 				}
@@ -288,6 +293,7 @@ namespace Erasme.Cloud.Authentication
 					if(context.Request.QueryString.ContainsKey("setcookie"))
 						context.Response.Headers["set-cookie"] = cookieKey+"="+sessionId+"; Path=/";
 					context.Response.StatusCode = 200;
+					context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 					context.Response.Content = new JsonContent(session);
 				}
 			}
@@ -300,10 +306,12 @@ namespace Erasme.Cloud.Authentication
 					sessionId = context.Request.Cookies[cookieKey];
 				if(sessionId == null) {
 					context.Response.StatusCode = 404;
+					context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				}
 				else {
 					Delete(sessionId);
 					context.Response.StatusCode = 200;
+					context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 					if(context.Request.QueryString.ContainsKey("setcookie"))
 						context.Response.Headers["set-cookie"] = cookieKey+"=; expires=Thu, 01-Jan-1970 00:00:01 GMT; Path=/";
 				}
@@ -312,6 +320,7 @@ namespace Erasme.Cloud.Authentication
 			else if((context.Request.Method == "DELETE") && (parts.Length == 1)) {
 				Delete(parts[0]);
 				context.Response.StatusCode = 200;
+				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				if(context.Request.QueryString.ContainsKey("setcookie"))
 					context.Response.Headers["set-cookie"] = cookieKey+"=; expires=Thu, 01-Jan-1970 00:00:01 GMT; Path=/";
 			}

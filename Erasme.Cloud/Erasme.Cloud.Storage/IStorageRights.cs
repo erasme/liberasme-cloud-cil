@@ -29,19 +29,79 @@
 
 using System;
 using Erasme.Http;
+using Erasme.Json;
 
-namespace Erasme.Cloud
+namespace Erasme.Cloud.Storage
 {
 	public interface IStorageRights
+	{	
+		void EnsureCanCreateStorage(HttpContext context);
+	
+		void EnsureCanUpdateStorage(HttpContext context, long storage);
+
+		void EnsureCanReadStorage(HttpContext context, long storage);
+
+		void EnsureCanDeleteStorage(HttpContext context, long storage);
+
+		void EnsureCanCreateFile(HttpContext context, long storage);
+
+		void EnsureCanReadFile(HttpContext context, long storage);
+
+		void EnsureCanUpdateFile(HttpContext context, long storage);
+		
+		void EnsureCanDeleteFile(HttpContext context, long storage);
+
+		void EnsureCanCreateComment(HttpContext context, long storage, long file, long user);
+
+		void EnsureCanUpdateComment(HttpContext context, long storage, long file, long comment);
+
+		void EnsureCanDeleteComment(HttpContext context, long storage, long file, long comment);
+	}
+
+	public class DummyStorageRights: IStorageRights
 	{
-		bool CanRead(HttpContext context, long storage, long file);
-		
-		bool CanCreate(HttpContext context, long storage);
-		
-		bool CanUpdate(HttpContext context, long storage, long file);
-		
-		bool CanDelete(HttpContext context, long storage, long file);
-		
-		bool CanAdmin(HttpContext context, long storage);
+		public void EnsureCanCreateStorage(HttpContext context)
+		{
+		}
+
+		public void EnsureCanUpdateStorage(HttpContext context, long storage)
+		{
+		}
+
+		public void EnsureCanReadStorage(HttpContext context, long storage)
+		{
+		}
+
+		public void EnsureCanDeleteStorage(HttpContext context, long storage)
+		{
+		}
+
+		public void EnsureCanReadFile(HttpContext context, long storage)
+		{
+		}
+
+		public void EnsureCanCreateFile(HttpContext context, long storage)
+		{
+		}
+
+		public void EnsureCanUpdateFile(HttpContext context, long storage)
+		{
+		}
+
+		public void EnsureCanDeleteFile(HttpContext context, long storage)
+		{
+		}
+
+		public void EnsureCanCreateComment(HttpContext context, long storage, long file, long user)
+		{
+		}
+
+		public void EnsureCanUpdateComment(HttpContext context, long storage, long file, long comment)
+		{
+		}
+
+		public void EnsureCanDeleteComment(HttpContext context, long storage, long file, long comment)
+		{
+		}
 	}
 }

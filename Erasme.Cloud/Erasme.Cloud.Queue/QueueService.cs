@@ -127,7 +127,7 @@ namespace Erasme.Cloud.Queue
 				string channel = parts[0];
 				if(context.Request.IsWebSocketRequest)
 					// accept the web socket and process it
-					await context.AcceptWebSocketRequest(new MonitorClient(this, channel));
+					await context.AcceptWebSocketRequestAsync(new MonitorClient(this, channel));
 				else {
 					if((context.Request.Method == "POST") && (parts.Length == 1)) {
 						JsonValue json = await context.Request.ReadAsJsonAsync();

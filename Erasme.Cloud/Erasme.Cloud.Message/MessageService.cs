@@ -311,6 +311,11 @@ namespace Erasme.Cloud.Message
 			return message;
 		}
 
+		public Task<JsonValue> SendMessageAsync(JsonValue message)
+		{
+			return Task<JsonValue>.Factory.StartNew((a) => SendMessage((JsonValue)a), message);
+		}
+
 		public JsonValue SendMessage(JsonValue message)
 		{
 			long origin;
@@ -482,12 +487,13 @@ namespace Erasme.Cloud.Message
 			// WS /[id] monitor a user messages
 			if((context.Request.IsWebSocketRequest) && (parts.Length == 1) && (long.TryParse(parts[0], out id))) {
 				MessageClient client = new MessageClient(this, id);
-				await context.AcceptWebSocketRequest(client);
+				await context.AcceptWebSocketRequestAsync(client);
 				//
 			}
 			// GET /[id] get a message
 			else if((context.Request.Method == "GET") && (parts.Length == 1) && (long.TryParse(parts[0], out id))) {
 				JsonValue json = GetMessage(id);
+				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				if(json == null) {
 					context.Response.StatusCode = 404;
 				}
@@ -506,6 +512,7 @@ namespace Erasme.Cloud.Message
 				if(context.Request.QueryString.ContainsKey("limit"))
 					limit = Convert.ToInt32(context.Request.QueryString["limit"]);
 				context.Response.StatusCode = 200;
+				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				context.Response.Content = new JsonContent(SearchMessages(user, with, limit));
 			}
 			// POST /?destination=[destination]&origin=[origin]
@@ -521,10 +528,12 @@ namespace Erasme.Cloud.Message
 					json["type"] = "message";
 
 				context.Response.StatusCode = 200;
+				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				context.Response.Content = new JsonContent(SendMessage(json));
 			}
 			// PUT /[id]
 			else if((context.Request.Method == "PUT") && (parts.Length == 1) && (long.TryParse(parts[0], out id))) {
+				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				JsonValue json = MarkSeenMessage(id);
 				if(json == null)
 					context.Response.StatusCode = 404;
@@ -535,6 +544,7 @@ namespace Erasme.Cloud.Message
 			}
 			// DELETE /[id] delete a message
 			else if((context.Request.Method == "DELETE") && (parts.Length == 1) && (long.TryParse(parts[0], out id))) {
+				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				if(DeleteMessage(id))
 					context.Response.StatusCode = 200;
 				else

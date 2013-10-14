@@ -58,11 +58,13 @@ namespace Erasme.Cloud.Mail
 				if(!json.ContainsKey("from") || !json.ContainsKey("to") ||
 					!json.ContainsKey("subject") || !json.ContainsKey("body")) {
 					context.Response.StatusCode = 400;
+					context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 					context.Response.Content = new StringContent("Fields from,to,subject and body are needed");
 				}
 				else if(!(json["from"].Value is String) || !(json["to"].Value is String) ||
 					!(json["subject"].Value is String) || !(json["body"].Value is String)) {
 					context.Response.StatusCode = 403;
+					context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 					context.Response.Content = new StringContent("Invalid fields format");
 				}
 				else {
@@ -75,6 +77,7 @@ namespace Erasme.Cloud.Mail
 						smtpClient.Send(fromString, toString, subjectString, bodyString);
 					}
 					context.Response.StatusCode = 200;
+					context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				}
 			}
 			// GET /?from=[from email]&to=[to email]&subject=[subject]&body=[email content]
@@ -83,6 +86,7 @@ namespace Erasme.Cloud.Mail
 				if(!context.Request.QueryString.ContainsKey("from") || !context.Request.QueryString.ContainsKey("to") ||
 				   !context.Request.QueryString.ContainsKey("subject") || !context.Request.QueryString.ContainsKey("body")) {
 					context.Response.StatusCode = 400;
+					context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 					context.Response.Content = new StringContent("Fields from,to,subject and body are needed");
 				}
 				else {
@@ -95,6 +99,7 @@ namespace Erasme.Cloud.Mail
 						smtpClient.Send(fromString, toString, subjectString, bodyString);
 					}
 					context.Response.StatusCode = 200;
+					context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				}
 			}
 			return Task.FromResult<Object>(null);

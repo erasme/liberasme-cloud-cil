@@ -161,7 +161,10 @@ namespace Erasme.Cloud.Storage
 				dbcmd.CommandText = "PRAGMA synchronous=0";
 				dbcmd.ExecuteNonQuery();
 			}
+			Rights = new DummyStorageRights();
 		}
+
+		public IStorageRights Rights { get; set; }
 
 		void MonitorClientSignalChanged(long storage, long rev)
 		{
@@ -1446,11 +1449,16 @@ namespace Erasme.Cloud.Storage
 
 			// WS /[storage] monitor changes in a storage
 			if((context.Request.IsWebSocketRequest) && (parts.Length == 1) && long.TryParse(parts[0], out id)) {
-				await context.AcceptWebSocketRequest(new MonitorClient(this, id));
+
+				Rights.EnsureCanReadStorage(context, id);
+
+				await context.AcceptWebSocketRequestAsync(new MonitorClient(this, id));
 			}
 			// POST / create a storage
 			else if((context.Request.Method == "POST") && (parts.Length == 0)) {
 				JsonValue json = await context.Request.ReadAsJsonAsync();
+
+				Rights.EnsureCanCreateStorage(context);
 
 				long quota = (long)json["quota"];
 				long storage = CreateStorage(quota);
@@ -1461,12 +1469,18 @@ namespace Erasme.Cloud.Storage
 			}
 			// DELETE /[storage] delete a storage
 			else if((context.Request.Method == "DELETE") && (parts.Length == 1) && long.TryParse(parts[0], out id)) {
+
+				Rights.EnsureCanDeleteStorage(context, id);
+
 				DeleteStorage(id);
 				context.Response.StatusCode = 200;
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 			}
 			// PUT /[storage]  change a storage
 			else if((context.Request.Method == "PUT") && (parts.Length == 1) && long.TryParse(parts[0], out id)) {
+
+				Rights.EnsureCanUpdateStorage(context, id);
+
 				JsonValue json = await context.Request.ReadAsJsonAsync();
 				if(ChangeStorage(id, json)) {
 					JsonValue info = GetStorageInfo(id);
@@ -1485,6 +1499,9 @@ namespace Erasme.Cloud.Storage
 			}
 			// GET /[storage] get storage info
 			else if((context.Request.Method == "GET") && (parts.Length == 1) && long.TryParse(parts[0], out id)) {
+
+				Rights.EnsureCanReadStorage(context, id);
+
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				JsonValue info = GetStorageInfo(id);
 				if(info == null) {
@@ -1499,6 +1516,8 @@ namespace Erasme.Cloud.Storage
 			else if((context.Request.Method == "POST") && (parts.Length == 2) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2)) {
 				long storage = id;
 				long parent = id2;
+
+				Rights.EnsureCanCreateFile(context, storage);
 
 				string filename = null;
 				string mimetype = null;
@@ -1567,6 +1586,9 @@ namespace Erasme.Cloud.Storage
 			else if((context.Request.Method == "GET") && (parts.Length == 2) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2)) {
 				long storage = id;
 				long file = id2;
+
+				Rights.EnsureCanReadFile(context, storage);
+
 				int depth = 0;
 				if(context.Request.QueryString.ContainsKey("depth"))
 					depth = Math.Max(0, Convert.ToInt32(context.Request.QueryString["depth"]));
@@ -1584,7 +1606,9 @@ namespace Erasme.Cloud.Storage
 			else if((context.Request.Method == "GET") && (parts.Length == 3) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2) && (parts[2] == "content")) {
 				long storage = id;
 				long file = id2;
-					
+
+				Rights.EnsureCanReadFile(context, storage);
+
 				string filename ;
 				string mimetype;
 				long rev;
@@ -1621,6 +1645,9 @@ namespace Erasme.Cloud.Storage
 			else if((context.Request.Method == "DELETE") && (parts.Length == 2) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2)) {
 				long storage = id;
 				long file = id2;
+
+				Rights.EnsureCanDeleteFile(context, storage);
+
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				if(DeleteFile(storage, file))
 					context.Response.StatusCode = 200;
@@ -1631,6 +1658,8 @@ namespace Erasme.Cloud.Storage
 			else if((context.Request.Method == "PUT") && (parts.Length == 2) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2)) {
 				long storage = id;
 				long file = id2;
+
+				Rights.EnsureCanUpdateFile(context, storage);
 
 				string tmpFile = null;
 				JsonValue define = new JsonObject();
@@ -1671,6 +1700,9 @@ namespace Erasme.Cloud.Storage
 			// POST /[storage]/[file]/comments  create a comment 
 			else if((context.Request.Method == "POST") && (parts.Length == 3) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2) && (parts[2] == "comments")) {
 				JsonValue define = await context.Request.ReadAsJsonAsync();
+
+				Rights.EnsureCanCreateComment(context, id, id2, (long)define["user"]);
+
 				CreateComment(id, id2, (long)define["user"], (string)define["content"], true);
 
 				context.Response.StatusCode = 200;
@@ -1679,6 +1711,9 @@ namespace Erasme.Cloud.Storage
 			// PUT /[storage]/[file]/comments/[comment]  modify a comment 
 			else if((context.Request.Method == "PUT") && (parts.Length == 4) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2) && (parts[2] == "comments") && long.TryParse(parts[3], out id3)) {
 				JsonValue define = await context.Request.ReadAsJsonAsync();
+
+				Rights.EnsureCanUpdateComment(context, id, id2, id3);
+
 				ChangeComment(id3, id, id2, (long)define["user"], (string)define["content"], true);
 
 				context.Response.StatusCode = 200;
@@ -1686,6 +1721,9 @@ namespace Erasme.Cloud.Storage
 			}
 			// DELETE /[storage]/[file]/comments/[comment] delete a comment
 			else if((context.Request.Method == "DELETE") && (parts.Length == 4) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2) && (parts[2] == "comments") && long.TryParse(parts[3], out id3)) {
+
+				Rights.EnsureCanDeleteComment(context, id, id2, id3);
+
 				DeleteComment(id, id2, id3, true);
 
 				context.Response.StatusCode = 200;
