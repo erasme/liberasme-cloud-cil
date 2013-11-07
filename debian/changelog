@@ -1,4 +1,4 @@
-liberasme-cloud-cil (1.0.1) raring; urgency=low (NOT YET RELEASED)
+liberasme-cloud-cil (1.0.1) raring; urgency=low
 
   * Provide a limited concurrency task scheduler
   * Embed webshot JS script
@@ -6,7 +6,7 @@ liberasme-cloud-cil (1.0.1) raring; urgency=low (NOT YET RELEASED)
   * Added bytes ranges support for StaticFiles
   * Add preview of audio files with the cover
 
- -- Daniel Lacroix <dlacroix@erasme.org>  Wed,  2 Oct 2013 16:22:00 +0200
+ -- Daniel Lacroix <dlacroix@erasme.org>  Thu,  7 Nov 2013 17:14:00 +0100
 
 liberasme-cloud-cil (1.0.0) raring; urgency=low
 
