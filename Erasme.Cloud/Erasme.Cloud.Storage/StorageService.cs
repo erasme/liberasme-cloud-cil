@@ -514,6 +514,17 @@ namespace Erasme.Cloud.Storage
 					HttpClientResponse response = request.GetResponse();
 					if(response.StatusCode != 200)
 						throw new Exception("URL download fails HTTP (url: "+downloadUrl+", status: " + response.StatusCode + ")");
+					if((mimetype == null) && response.Headers.ContainsKey("content-type"))
+						mimetype = response.Headers["content-type"];
+					if(name == null) {
+						int slashPos = downloadUrl.LastIndexOf("/");
+						if((slashPos > 0) && (slashPos < downloadUrl.Length - 1))
+							name = downloadUrl.Substring(slashPos + 1);
+						else
+							name = "unknown";
+					}
+					if(mimetype == null)
+						FileContent.MimeType(name);
 					response.InputStream.CopyTo(fileStream);
 				}
 			}
@@ -562,8 +573,15 @@ namespace Erasme.Cloud.Storage
 					// insert into file table
 					using (IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "INSERT INTO file (storage_id,parent_id,mimetype,name,ctime,mtime,rev,size,position) " +
-							"VALUES (" + storage.ToString() + "," + parent.ToString() + ",'" + mimetype.Replace("'", "''") + "','" + name.Replace("'", "''") + "',datetime('now'),datetime('now'),0," + size + "," + (position * 2) + ")";
+						dbcmd.CommandText = "INSERT INTO file (storage_id,parent_id,mimetype,name,ctime,mtime,rev,size,position) "+
+							"VALUES (@storage,@parent,@mimetype,@name,datetime('now'),datetime('now'),0,@size,@position)";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+						dbcmd.Parameters.Add(new SqliteParameter("parent", parent));
+						dbcmd.Parameters.Add(new SqliteParameter("mimetype", mimetype));
+						dbcmd.Parameters.Add(new SqliteParameter("name", name));
+						dbcmd.Parameters.Add(new SqliteParameter("size", size));
+						dbcmd.Parameters.Add(new SqliteParameter("position", position*2));
+
 						if(dbcmd.ExecuteNonQuery() != 1)
 							throw new Exception("File create fails");
 					}
@@ -583,7 +601,10 @@ namespace Erasme.Cloud.Storage
 							string value = (string)meta[key];
 							using (IDbCommand dbcmd = dbcon.CreateCommand()) {
 								dbcmd.Transaction = transaction;
-								dbcmd.CommandText = "INSERT INTO meta (owner_id,key,value) VALUES (" + file + ",'" + key.Replace("'", "''") + "','" + value.Replace("'", "''") + "')";
+								dbcmd.CommandText = "INSERT INTO meta (owner_id,key,value) VALUES (@file,@key,@value)";
+								dbcmd.Parameters.Add(new SqliteParameter("file", file));
+								dbcmd.Parameters.Add(new SqliteParameter("key", key));
+								dbcmd.Parameters.Add(new SqliteParameter("value", value));
 								dbcmd.ExecuteNonQuery();
 							}
 						}
@@ -1527,8 +1548,6 @@ namespace Erasme.Cloud.Storage
 	
 				string contentType = context.Request.Headers["content-type"];
 				if(contentType.IndexOf("multipart/form-data") >= 0) {
-					tmpFile = temporaryDirectory+"/"+Guid.NewGuid().ToString();
-
 					MultipartReader reader = context.Request.ReadAsMultipart();
 					MultipartPart part;
 					while((part = await reader.ReadPartAsync()) != null) {
@@ -1544,7 +1563,8 @@ namespace Erasme.Cloud.Storage
 								mimetype = (string)define["mimetype"];
 						}
 						// the file content
-						else if(part.Headers.ContentDisposition["name"] == "file") {
+						else if((part.Headers.ContentDisposition["name"] == "file") && (tmpFile == null)) {
+							tmpFile = temporaryDirectory+"/"+Guid.NewGuid().ToString();
 							using(FileStream fileStream = new FileStream(tmpFile, FileMode.CreateNew, FileAccess.Write)) {
 								await part.Stream.CopyToAsync(fileStream);
 							}
@@ -1562,21 +1582,29 @@ namespace Erasme.Cloud.Storage
 					if(define.ContainsKey("mimetype"))
 						mimetype = (string)define["mimetype"];
 				}
-				if(filename == null) {
-					filename = "unknown";
-					if(mimetype == null)
-						mimetype = "application/octet-stream";
-				}
-				else if(mimetype == null) {
-					// if mimetype was not given in the define part, decide it from
-					// the file extension
-					mimetype = FileContent.MimeType(filename);
-					// if not found from the file extension, decide it from the Content-Type
-					if((mimetype == "application/octet-stream") && (fileContentType != null))
-						mimetype = fileContentType;
-				}
 
-				long file = CreateFile(storage, parent, filename, mimetype, tmpFile, define, true);
+				long file;
+				if(define.ContainsKey("downloadUrl") && (tmpFile == null)) {
+					string downloadUrl = define["downloadUrl"];
+					((JsonObject)define).Remove("downloadUrl");
+					file = CreateFileFromUrl(storage, parent, filename, mimetype, downloadUrl, define, true);
+				}
+				else {
+					if(filename == null) {
+						filename = "unknown";
+						if(mimetype == null)
+							mimetype = "application/octet-stream";
+					}
+					else if(mimetype == null) {
+						// if mimetype was not given in the define part, decide it from
+						// the file extension
+						mimetype = FileContent.MimeType(filename);
+						// if not found from the file extension, decide it from the Content-Type
+						if((mimetype == "application/octet-stream") && (fileContentType != null))
+							mimetype = fileContentType;
+					}
+					file = CreateFile(storage, parent, filename, mimetype, tmpFile, define, true);
+				}
 										
 				context.Response.StatusCode = 200;
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
