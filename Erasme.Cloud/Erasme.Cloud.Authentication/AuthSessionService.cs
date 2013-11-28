@@ -66,7 +66,7 @@ namespace Erasme.Cloud.Authentication
 			if(createNeeded) {
 				// create the session table
 				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-					dbcmd.CommandText = "CREATE TABLE session (id VARCHAR PRIMARY KEY, user INTEGER, start INTEGER, last INTEGER, permanent INTEGER(1) DEFAULT 0)";
+					dbcmd.CommandText = "CREATE TABLE session (id VARCHAR PRIMARY KEY, user VARCHAR, start INTEGER, last INTEGER, permanent INTEGER(1) DEFAULT 0)";
 					dbcmd.ExecuteNonQuery();
 				}
 			}
@@ -111,7 +111,7 @@ namespace Erasme.Cloud.Authentication
 		{
 			JsonValue res = new JsonObject();
 			res["id"] = session;
-			long user = -1;
+			string user = null;
 			double deltaSec = 0;
 			// get the session
 			using(IDbCommand dbcmd = dbcon.CreateCommand()) {
@@ -120,7 +120,7 @@ namespace Erasme.Cloud.Authentication
 				using(IDataReader reader = dbcmd.ExecuteReader()) {
 					if(!reader.Read())
 						return null;
-					user = reader.GetInt64(0);
+					user = reader.GetString(0);
 					deltaSec = reader.GetDouble(1);
 					reader.Close();
 				}
@@ -140,12 +140,12 @@ namespace Erasme.Cloud.Authentication
 			return res;
 		}
 
-		public JsonValue Create(long user)
+		public JsonValue Create(string user)
 		{
 			return Create(user, false);
 		}
 
-		public JsonValue Create(long user, bool permanent)
+		public JsonValue Create(string user, bool permanent)
 		{
 			JsonValue session = null;
 			string id;
@@ -164,7 +164,8 @@ namespace Erasme.Cloud.Authentication
 						// check if session already exists
 						using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 							dbcmd.Transaction = transaction;
-							dbcmd.CommandText = "SELECT COUNT(id) FROM session WHERE id='" + id + "'";
+							dbcmd.CommandText = "SELECT COUNT(id) FROM session WHERE id=@id";
+							dbcmd.Parameters.Add(new SqliteParameter("id", id));
 							count = Convert.ToInt32(dbcmd.ExecuteScalar());
 						}
 					} while(count > 0);
@@ -173,7 +174,10 @@ namespace Erasme.Cloud.Authentication
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
 						dbcmd.CommandText = "INSERT INTO session (id,user,start,last,permanent) " +
-							"VALUES ('" + id + "'," + user.ToString() + ",DATETIME('now'),DATETIME('now')," + (permanent?"1":"0") + ")";
+							"VALUES (@id,@user,DATETIME('now'),DATETIME('now'),@permanent)";
+						dbcmd.Parameters.Add(new SqliteParameter("id", id));
+						dbcmd.Parameters.Add(new SqliteParameter("user", user));
+						dbcmd.Parameters.Add(new SqliteParameter("permanent", (permanent?1:0)));
 						dbcmd.ExecuteNonQuery();
 					}
 					session = Get(dbcon, transaction, id, false);
@@ -232,10 +236,10 @@ namespace Erasme.Cloud.Authentication
 			if((context.Request.Method == "POST") && (parts.Length == 0)) {
 				JsonValue json = context.Request.ReadAsJson();
 
-				long user = (long)json["user"];
+				string user = json["user"];
 				bool permanent = false;
 				if(json.ContainsKey("permanent"))
-					permanent = (bool)json["permanent"];
+					permanent = json["permanent"];
 
 				context.Response.StatusCode = 200;
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
