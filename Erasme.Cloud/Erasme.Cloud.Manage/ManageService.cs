@@ -29,6 +29,7 @@
 using System;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using Erasme.Http;
 using Erasme.Json;
 
@@ -40,7 +41,25 @@ namespace Erasme.Cloud.Manage
 		{
 		}
 
+		bool CheckFilters(JsonObject json, Dictionary<string, string> filters)
+		{
+			if(filters == null)
+				return true;
+			foreach(string key in filters.Keys) {
+				if(!json.ContainsKey(key))
+					return false;
+				if(!Regex.IsMatch((string)json[key], filters[key], RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace))
+					return false;
+			}
+			return true;
+		}
+
 		public JsonValue GetClients(HttpContext context)
+		{
+			return GetClients(context, null);
+		}
+
+		public JsonValue GetClients(HttpContext context, Dictionary<string,string> filters)
 		{
 			// get connected HTTP clients
 			JsonArray clients = new JsonArray();
@@ -62,7 +81,8 @@ namespace Erasme.Cloud.Manage
 					if(client.Context.Request.Headers.ContainsKey("user-agent"))
 						jsonClient["user-agent"] = client.Context.Request.Headers["user-agent"];
 				}
-				clients.Add(jsonClient);
+				if(CheckFilters(jsonClient, filters))
+					clients.Add(jsonClient);
 			}
 			return clients;
 		}
@@ -70,7 +90,6 @@ namespace Erasme.Cloud.Manage
 		public bool CloseClient(HttpContext context, string addressOrUser)
 		{
 			bool done = false;
-			Console.WriteLine("ClientClient("+addressOrUser+")");
 			foreach(HttpServerClient client in context.Client.Server.Clients) {
 				if((client != context.Client) && (
 					(client.RemoteEndPoint.ToString() == addressOrUser) ||
@@ -92,7 +111,7 @@ namespace Erasme.Cloud.Manage
 				JsonValue json = new JsonObject();
 				context.Response.Content = new JsonContent(json);
 				// get connected HTTP clients
-				json["clients"] = GetClients(context);
+				json["clients"] = GetClients(context, context.Request.QueryString);
 				context.Response.Content = new JsonContent(json);
 			}
 			// GET /clients get all connected HTTP clients
