@@ -5,7 +5,7 @@
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
-// Copyright (c) 2012-2013 Departement du Rhone
+// Copyright (c) 2012-2014 Departement du Rhone
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Collections.Generic;
 using Erasme.Http;
@@ -63,17 +64,33 @@ namespace Erasme.Cloud.Mime
 						mimetype = String.Empty;
 				}
 
-				string file = basedir+"/"+HttpUtility.UrlEncode(mimetype)+".png";
+				string format = "svg";
+				if(context.Request.QueryString.ContainsKey("format")) {
+					format = context.Request.QueryString["format"];
+					if((format != "svg") || (format != "png"))
+						format = "svg";
+				}
+				else {
+					if(context.Request.Headers.ContainsKey("user-agent")) {
+						string userAgent = context.Request.Headers["user-agent"];
+						Regex r = new Regex(@" MSIE (7|8)\.0;", RegexOptions.IgnoreCase);
+						if(r.Match(userAgent).Success) {
+							format = "png";
+						}
+					}
+				}
+
+				string file = basedir+"/"+HttpUtility.UrlEncode(mimetype)+"."+format;
 
 				if(!File.Exists(file)) {
 					string[] splitted = mimetype.Split('/');
-					if(File.Exists(basedir+"/"+HttpUtility.UrlEncode(splitted[0])+".png"))
-						file = basedir+"/"+HttpUtility.UrlEncode(splitted[0])+".png";
+					if(File.Exists(basedir+"/"+HttpUtility.UrlEncode(splitted[0])+"."+format))
+						file = basedir+"/"+HttpUtility.UrlEncode(splitted[0])+"."+format;
 					else
-						file = basedir+"/default.png";
+						file = basedir+"/default."+format;
 				}
 				context.Response.StatusCode = 200;
-				context.Response.Headers["content-type"] = "image/png";
+				context.Response.Headers["content-type"] = (format == "svg") ? "image/svg+xml" : "image/png";
 				context.Response.Headers["cache-control"] = "max-age="+cacheDuration;
 				context.Response.Content = new FileContent(file);
 			}
