@@ -70,36 +70,29 @@ namespace Erasme.Cloud.Preview
 					(naturalWidth > width) || (naturalHeight > height);
 
 				List<string> argsList = new List<string>();
-				if(mimetype == "image/png") {
+
+				bool needTransparency =
+					(mimetype == "image/png") || (mimetype == "image/x-tga") || (mimetype == "image/svg+xml");
+
+				if(mimetype == "image/png")
 					argsList.Add("png:"+file+"[0]");
-					argsList.Add("-auto-orient");
-					argsList.Add("-strip");
-					if(resizeNeeded) {
-						argsList.Add("-resize");
-						argsList.Add(width+"x"+height);
-					}
-					argsList.Add("png:"+tmpFile);
-					format = PreviewFormat.PNG;
-				}
-				else if(mimetype == "image/x-tga") {
+				else if(mimetype == "image/x-tga")
 					argsList.Add("tga:"+file+"[0]");
-					argsList.Add("-auto-orient");
-					argsList.Add("-strip");
-					if(resizeNeeded) {
-						argsList.Add("-resize");
-						argsList.Add(width+"x"+height);
-					}
+				else
+					argsList.Add("file://"+file+"[0]");
+
+				argsList.Add("-auto-orient");
+				argsList.Add("-strip");
+				if(resizeNeeded) {
+					argsList.Add("-resize");
+					argsList.Add(width+"x"+height);
+				}
+
+				if(needTransparency) {
 					argsList.Add("png:"+tmpFile);
 					format = PreviewFormat.PNG;
 				}
 				else {
-					argsList.Add(file+"[0]");
-					argsList.Add("-auto-orient");
-					argsList.Add("-strip");
-					if(resizeNeeded) {
-						argsList.Add("-resize");
-						argsList.Add(width+"x"+height);
-					}
 					argsList.Add("-quality");
 					argsList.Add("80");
 					argsList.Add("jpeg:"+tmpFile);
