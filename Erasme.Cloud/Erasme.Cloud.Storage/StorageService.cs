@@ -43,13 +43,13 @@ namespace Erasme.Cloud.Storage
 	public class StorageService: IHttpHandler, IDisposable
 	{
 		object instanceLock = new object();
-		Dictionary<long,WebSocketHandlerCollection<MonitorClient>> clients = new Dictionary<long,WebSocketHandlerCollection<MonitorClient>>();
+		Dictionary<string,WebSocketHandlerCollection<MonitorClient>> clients = new Dictionary<string,WebSocketHandlerCollection<MonitorClient>>();
 
 		class MonitorClient: WebSocketHandler
 		{
-			long storage;
+			string storage;
 
-			public MonitorClient(StorageService service, long storage)
+			public MonitorClient(StorageService service, string storage)
 			{
 				Service = service;
 				this.storage = storage;
@@ -57,7 +57,7 @@ namespace Erasme.Cloud.Storage
 
 			public StorageService Service { get; private set; }
 			
-			public long Storage
+			public string Storage
 			{
 				get {
 					return storage;
@@ -132,13 +132,13 @@ namespace Erasme.Cloud.Storage
 			if(createNeeded) {			
 				// create the storage table
 				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-					dbcmd.CommandText = "CREATE TABLE storage (id INTEGER PRIMARY KEY AUTOINCREMENT, quota INTEGER DEFAULT 0, used INTEGER DEFAULT 0, ctime INTEGER, mtime INTEGER, rev INTEGER DEFAULT 0)";
+					dbcmd.CommandText = "CREATE TABLE storage (id VARCHAR PRIMARY KEY, quota INTEGER DEFAULT 0, used INTEGER DEFAULT 0, ctime INTEGER, mtime INTEGER, rev INTEGER DEFAULT 0)";
 					dbcmd.ExecuteNonQuery();
 				}
 
 				// create the file table
 				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-					dbcmd.CommandText = "CREATE TABLE file (id INTEGER PRIMARY KEY AUTOINCREMENT, storage_id INTEGER, parent_id INTEGER DEFAULT 0, name VARCHAR, mimetype VARCHAR, ctime INTEGER, mtime INTEGER, rev INTEGER DEFAULT 0, size INTEGER DEFAULT 0, position INTEGER DEFAULT 0)";
+					dbcmd.CommandText = "CREATE TABLE file (id INTEGER PRIMARY KEY AUTOINCREMENT, storage_id VARCHAR, parent_id INTEGER DEFAULT 0, name VARCHAR, mimetype VARCHAR, ctime INTEGER, mtime INTEGER, rev INTEGER DEFAULT 0, size INTEGER DEFAULT 0, position INTEGER DEFAULT 0)";
 					dbcmd.ExecuteNonQuery();
 				}
 
@@ -152,7 +152,7 @@ namespace Erasme.Cloud.Storage
 				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 					dbcmd.CommandText = "CREATE TABLE comment "+
 						"(id INTEGER PRIMARY KEY AUTOINCREMENT, file_id INTEGER, "+
-						"user_id INTEGER, content VARCHAR, ctime INTEGER, mtime INTEGER)";
+						"user_id VARCHAR, content VARCHAR, ctime INTEGER, mtime INTEGER)";
 					dbcmd.ExecuteNonQuery();
 				}
 			}
@@ -166,7 +166,7 @@ namespace Erasme.Cloud.Storage
 
 		public IStorageRights Rights { get; set; }
 
-		void MonitorClientSignalChanged(long storage, long rev)
+		void MonitorClientSignalChanged(string storage, long rev)
 		{
 			JsonValue json = new JsonObject();
 			json["storage"] = storage;
@@ -180,7 +180,7 @@ namespace Erasme.Cloud.Storage
 			}
 		}
 
-		void MonitorClientSignalDeleted(long storage)
+		void MonitorClientSignalDeleted(string storage)
 		{
 			JsonValue json = new JsonObject();
 			json["storage"] = storage;
@@ -193,7 +193,7 @@ namespace Erasme.Cloud.Storage
 			}
 		}
 
-		public delegate void StorageCreatedEventHandler(long storage);
+		public delegate void StorageCreatedEventHandler(string storage);
 		List<StorageCreatedEventHandler> storageCreatedHandlers = new List<StorageCreatedEventHandler>();
 		public event StorageCreatedEventHandler StorageCreated {
 			add {
@@ -207,7 +207,7 @@ namespace Erasme.Cloud.Storage
 				}
 			}
 		}
-		void RaisesStorageCreated(long storage)
+		void RaisesStorageCreated(string storage)
 		{
 			List<StorageCreatedEventHandler> handlers;
 			lock(storageCreatedHandlers) {
@@ -223,46 +223,69 @@ namespace Erasme.Cloud.Storage
 			}
 		}
 
+		public string CreateStorage(long quota)
+		{
+			return CreateStorage(null, quota);
+		}
+
+		string GenerateRandomId(int size = 10)
+		{
+			// generate the random id
+			string randchars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+			Random rand = new Random();
+			StringBuilder sb = new StringBuilder(size);
+			for(int i = 0; i < size; i++)
+				sb.Append(randchars[rand.Next(randchars.Length)]);
+			return sb.ToString();
+		}
+
 		/// <summary>
 		/// Create a new storage. Return a unique identifier.
 		/// </summary>
-		public long CreateStorage(long quota)
+		public string CreateStorage(string id, long quota)
 		{
-			long storageId;
-
 			lock(dbcon) {
 				using(IDbTransaction transaction = dbcon.BeginTransaction()) {
 				
+					if(id == null) {
+						int count = 0;
+						// generate the random resource id
+						do {
+							id = GenerateRandomId();
+							// check if resource id already exists
+							using(IDbCommand dbcmd = dbcon.CreateCommand()) {
+								dbcmd.Transaction = transaction;
+								dbcmd.CommandText = "SELECT COUNT(id) FROM storage WHERE id=@id";
+								dbcmd.Parameters.Add(new SqliteParameter("id", id));
+								count = Convert.ToInt32(dbcmd.ExecuteScalar());
+							}
+						} while(count > 0);
+					}
+
 					// insert into storage table
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "INSERT INTO storage (quota,used,ctime,mtime) VALUES ("+quota+",0,datetime('now'),datetime('now'))";
+						dbcmd.CommandText = "INSERT INTO storage (id,quota,used,ctime,mtime) VALUES (@id,@quota,0,datetime('now'),datetime('now'))";
+						dbcmd.Parameters.Add(new SqliteParameter("id", id));
+						dbcmd.Parameters.Add(new SqliteParameter("quota", quota));
 						int count = dbcmd.ExecuteNonQuery();
 						if(count != 1)
 							throw new Exception("Create Storage fails");
 					}
 
-					// get the insert id
-					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "SELECT last_insert_rowid()";
-						storageId = Convert.ToInt64(dbcmd.ExecuteScalar());
-					}
-
 					// create the corresponding directory
 					// to store files
-					Directory.CreateDirectory(basePath+"/"+storageId.ToString());
+					Directory.CreateDirectory(basePath+"/"+id);
 				
 					// commit the transaction
 					transaction.Commit();
 				}
 			}
-			RaisesStorageCreated(storageId);
-
-			return storageId;
+			RaisesStorageCreated(id);
+			return id;
 		}
 				
-		public delegate void StorageDeletedEventHandler(long storage);
+		public delegate void StorageDeletedEventHandler(string storage);
 		List<StorageDeletedEventHandler> storageDeletedHandlers = new List<StorageDeletedEventHandler>();
 		public event StorageDeletedEventHandler StorageDeleted {
 			add {
@@ -276,7 +299,7 @@ namespace Erasme.Cloud.Storage
 				}
 			}
 		}
-		void RaisesStorageDeleted(long storage)
+		void RaisesStorageDeleted(string storage)
 		{
 			List<StorageDeletedEventHandler> handlers;
 			lock(storageDeletedHandlers) {
@@ -292,7 +315,7 @@ namespace Erasme.Cloud.Storage
 			}
 		}
 
-		public void DeleteStorage(long storage)
+		public void DeleteStorage(string storage)
 		{
 			lock(dbcon) {
 				using(IDbTransaction transaction = dbcon.BeginTransaction()) {
@@ -300,28 +323,32 @@ namespace Erasme.Cloud.Storage
 					// delete all the meta
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "DELETE FROM meta WHERE owner_id IN (SELECT id FROM file WHERE storage_id="+storage+")";
+						dbcmd.CommandText = "DELETE FROM meta WHERE owner_id IN (SELECT id FROM file WHERE storage_id=@storage)";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
 						dbcmd.ExecuteNonQuery();
 					}
 
 					// delete all the comments
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "DELETE FROM comment WHERE file_id IN (SELECT id FROM file WHERE storage_id="+storage+")";
+						dbcmd.CommandText = "DELETE FROM comment WHERE file_id IN (SELECT id FROM file WHERE storage_id=@storage)";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
 						dbcmd.ExecuteNonQuery();
 					}
 				
 					// delete all the files
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "DELETE FROM file WHERE storage_id="+storage;
+						dbcmd.CommandText = "DELETE FROM file WHERE storage_id=@storage";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
 						dbcmd.ExecuteNonQuery();
 					}
 				
 					// delete from the storage table
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "DELETE FROM storage WHERE id="+storage;
+						dbcmd.CommandText = "DELETE FROM storage WHERE id=@storage";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
 						int count = dbcmd.ExecuteNonQuery();
 						if(count != 1)
 							throw new Exception("Delete fails. Storage does not exists");
@@ -339,7 +366,7 @@ namespace Erasme.Cloud.Storage
 			RaisesStorageDeleted(storage);
 		}
 
-		public delegate void StorageChangedEventHandler(long storage);
+		public delegate void StorageChangedEventHandler(string storage);
 		List<StorageChangedEventHandler> storageChangedHandlers = new List<StorageChangedEventHandler>();
 		public event StorageChangedEventHandler StorageChanged {
 			add {
@@ -353,7 +380,7 @@ namespace Erasme.Cloud.Storage
 				}
 			}
 		}
-		void RaisesStorageChanged(long storage)
+		void RaisesStorageChanged(string storage)
 		{
 			List<StorageChangedEventHandler> handlers;
 			lock(storageChangedHandlers) {
@@ -369,7 +396,7 @@ namespace Erasme.Cloud.Storage
 			}
 		}
 
-		public bool ChangeStorage(long storage, JsonValue diff)
+		public bool ChangeStorage(string storage, JsonValue diff)
 		{
 			if(!diff.ContainsKey("quota"))
 				return false;
@@ -384,7 +411,8 @@ namespace Erasme.Cloud.Storage
 					// get quota and quota used
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "SELECT used,rev FROM storage WHERE id="+storage;
+						dbcmd.CommandText = "SELECT used,rev FROM storage WHERE id=@storage";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
 						using(IDataReader reader = dbcmd.ExecuteReader()) {
 							if(!reader.Read())
 								return false;
@@ -400,7 +428,10 @@ namespace Erasme.Cloud.Storage
 					// update quota and mtime
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "UPDATE storage SET quota="+quota+",mtime=datetime('now'),rev="+(rev+1)+" WHERE id="+storage;
+						dbcmd.CommandText = "UPDATE storage SET quota=@quota,mtime=datetime('now'),rev=@rev WHERE id=@storage";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+						dbcmd.Parameters.Add(new SqliteParameter("quota", quota));
+						dbcmd.Parameters.Add(new SqliteParameter("rev", rev+1));
 						dbcmd.ExecuteNonQuery();
 					}
 				
@@ -413,7 +444,7 @@ namespace Erasme.Cloud.Storage
 			return true;
 		}
 
-		public JsonValue GetStorageInfo(long storage)
+		public JsonValue GetStorageInfo(string storage)
 		{
 			long quota;
 			long used;
@@ -436,7 +467,7 @@ namespace Erasme.Cloud.Storage
 			}
 		}
 		
-		public bool GetStorageInfo(long storage, out long quota, out long used, out long ctime, out long mtime, out long rev)
+		public bool GetStorageInfo(string storage, out long quota, out long used, out long ctime, out long mtime, out long rev)
 		{
 			bool res;
 			lock(dbcon) {
@@ -447,13 +478,14 @@ namespace Erasme.Cloud.Storage
 			return res;
 		}
 
-		bool GetStorageInfo(IDbConnection dbcon, IDbTransaction transaction, long storage, out long quota, out long used, out long ctime, out long mtime, out long rev)
+		bool GetStorageInfo(IDbConnection dbcon, IDbTransaction transaction, string storage, out long quota, out long used, out long ctime, out long mtime, out long rev)
 		{
 			// get the storage info
 			using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 				dbcmd.Transaction = transaction;
-				dbcmd.CommandText = "SELECT quota,used,strftime('%s',ctime),strftime('%s',mtime),rev FROM storage WHERE id="+storage.ToString();
-					using(IDataReader reader = dbcmd.ExecuteReader()) {
+				dbcmd.CommandText = "SELECT quota,used,strftime('%s',ctime),strftime('%s',mtime),rev FROM storage WHERE id=@storage";
+				dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+				using(IDataReader reader = dbcmd.ExecuteReader()) {
 					if(!reader.Read()) {
 						quota = 0;
 						used = 0;
@@ -474,7 +506,7 @@ namespace Erasme.Cloud.Storage
 			return true;
 		}
 		
-		public delegate void FileCreatedEventHandler(long storage, long file);
+		public delegate void FileCreatedEventHandler(string storage, long file);
 		List<FileCreatedEventHandler> fileCreatedHandlers = new List<FileCreatedEventHandler>();
 		public event FileCreatedEventHandler FileCreated {
 			add {
@@ -488,7 +520,7 @@ namespace Erasme.Cloud.Storage
 				}
 			}
 		}
-		void RaisesFileCreated(long storage, long file)
+		void RaisesFileCreated(string storage, long file)
 		{
 			List<FileCreatedEventHandler> handlers;
 			lock(fileCreatedHandlers) {
@@ -504,7 +536,7 @@ namespace Erasme.Cloud.Storage
 			}
 		}
 
-		public long CreateFileFromUrl(long storage, long parent, string name, string mimetype, string downloadUrl, JsonValue define, bool signal)
+		public long CreateFileFromUrl(string storage, long parent, string name, string mimetype, string downloadUrl, JsonValue define, bool signal)
 		{
 			string tmpFile = temporaryDirectory+"/"+Guid.NewGuid().ToString();
 
@@ -531,7 +563,7 @@ namespace Erasme.Cloud.Storage
 			return CreateFile(storage, parent, name, mimetype, tmpFile, define, signal);
 		}
 
-		public long CreateFile(long storage, long parent, string name, string mimetype, string tmpFile, JsonValue define, bool signal)
+		public long CreateFile(string storage, long parent, string name, string mimetype, string tmpFile, JsonValue define, bool signal)
 		{
 			long file;
 
@@ -544,15 +576,15 @@ namespace Erasme.Cloud.Storage
 			long rev = 0;
 			lock(dbcon) {
 				using(IDbTransaction transaction = dbcon.BeginTransaction()) {
-
 					long quota = 0;
 					long used = 0;
 
 					// get quota and quota used
-					using (IDbCommand dbcmd = dbcon.CreateCommand()) {
+					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "SELECT quota,used,rev FROM storage WHERE id=" + storage;
-													using (IDataReader reader = dbcmd.ExecuteReader()) {
+						dbcmd.CommandText = "SELECT quota,used,rev FROM storage WHERE id=@storage";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+						using(IDataReader reader = dbcmd.ExecuteReader()) {
 							if(!reader.Read())
 								throw new Exception("Create fails, storage not found");
 							quota = reader.GetInt64(0);
@@ -599,7 +631,7 @@ namespace Erasme.Cloud.Storage
 
 						foreach(string key in meta.Keys) {
 							string value = (string)meta[key];
-							using (IDbCommand dbcmd = dbcon.CreateCommand()) {
+							using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 								dbcmd.Transaction = transaction;
 								dbcmd.CommandText = "INSERT INTO meta (owner_id,key,value) VALUES (@file,@key,@value)";
 								dbcmd.Parameters.Add(new SqliteParameter("file", file));
@@ -616,7 +648,10 @@ namespace Erasme.Cloud.Storage
 					// update the storage
 					using (IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "UPDATE storage SET mtime=datetime('now'),used=" + Math.Max(0, used + size) + ",rev=" + (rev + 1) + " WHERE id=" + storage;
+						dbcmd.CommandText = "UPDATE storage SET mtime=datetime('now'),used=@used,rev=@rev WHERE id=@storage";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+						dbcmd.Parameters.Add(new SqliteParameter("used", Math.Max(0, used + size)));
+						dbcmd.Parameters.Add(new SqliteParameter("rev", rev + 1));
 						dbcmd.ExecuteNonQuery();
 					}
 
@@ -642,7 +677,7 @@ namespace Erasme.Cloud.Storage
 			return file;
 		}
 
-		public delegate void CommentCreatedEventHandler(long storage, long file, long comment);
+		public delegate void CommentCreatedEventHandler(string storage, long file, long comment);
 		List<CommentCreatedEventHandler> commentCreatedHandlers = new List<CommentCreatedEventHandler>();
 		public event CommentCreatedEventHandler CommentCreated {
 			add {
@@ -656,7 +691,7 @@ namespace Erasme.Cloud.Storage
 				}
 			}
 		}
-		void RaisesCommentCreated(long storage, long file, long comment)
+		void RaisesCommentCreated(string storage, long file, long comment)
 		{
 			List<CommentCreatedEventHandler> handlers;
 			lock(commentCreatedHandlers) {
@@ -672,7 +707,7 @@ namespace Erasme.Cloud.Storage
 			}
 		}
 
-		public long CreateComment (long storage, long file, long user, string content, bool signal)
+		public long CreateComment(string storage, long file, string user, string content, bool signal)
 		{
 			long id;
 			long rev = 0;
@@ -682,8 +717,9 @@ namespace Erasme.Cloud.Storage
 					// get storage revision
 					using (IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "SELECT rev FROM storage WHERE id=" + storage;
-						using (IDataReader reader = dbcmd.ExecuteReader()) {
+						dbcmd.CommandText = "SELECT rev FROM storage WHERE id=@storage";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+						using(IDataReader reader = dbcmd.ExecuteReader()) {
 							if (!reader.Read ())
 								throw new Exception ("Create fails, storage not found");
 							rev = reader.GetInt64 (0);
@@ -694,45 +730,54 @@ namespace Erasme.Cloud.Storage
 					long fileRev;
 
 					// get old file infos
-					using (IDbCommand dbcmd = dbcon.CreateCommand()) {
+					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "SELECT rev FROM file WHERE storage_id=" + storage + " AND id=" + file;
-						using (IDataReader reader = dbcmd.ExecuteReader()) {
-							if (!reader.Read ())
-								throw new Exception ("Change fails, file not found");
-							fileRev = reader.GetInt64 (0);
+						dbcmd.CommandText = "SELECT rev FROM file WHERE storage_id=@storage AND id=@file";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
+						using(IDataReader reader = dbcmd.ExecuteReader()) {
+							if(!reader.Read())
+								throw new Exception("Change fails, file not found");
+							fileRev = reader.GetInt64(0);
 							reader.Close ();
 						}
 					}
 							
 					// insert into comment table
-					using (IDbCommand dbcmd = dbcon.CreateCommand()) {
+					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
 						dbcmd.CommandText = "INSERT INTO comment (file_id,user_id,content,ctime,mtime) "+
-							"VALUES ("+file.ToString()+","+user.ToString()+",'"+
-							content.Replace("'", "''")+"',datetime('now'),datetime('now'))";
-						if (dbcmd.ExecuteNonQuery() != 1)
+							"VALUES (@file,@user,@content,datetime('now'),datetime('now'))";
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
+						dbcmd.Parameters.Add(new SqliteParameter("user", user));
+						dbcmd.Parameters.Add(new SqliteParameter("content", content));
+						if(dbcmd.ExecuteNonQuery() != 1)
 							throw new Exception("Comment create fails");
 					}
 
 					// get the insert id
-					using (IDbCommand dbcmd = dbcon.CreateCommand()) {
+					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
 						dbcmd.CommandText = "SELECT last_insert_rowid()";
 						id = Convert.ToInt64(dbcmd.ExecuteScalar ());
 					}
 
 					// update the file
-					using (IDbCommand dbcmd = dbcon.CreateCommand()) {
+					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "UPDATE file SET mtime=datetime('now'),rev=" + (fileRev + 1) + " WHERE storage_id=" + storage + " AND id=" + file;
+						dbcmd.CommandText = "UPDATE file SET mtime=datetime('now'),rev=@rev WHERE storage_id=@storage AND id=@file";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
+						dbcmd.Parameters.Add(new SqliteParameter("rev", fileRev + 1));
 						dbcmd.ExecuteNonQuery();
 					}
 
 					// update the storage
-					using (IDbCommand dbcmd = dbcon.CreateCommand()) {
+					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "UPDATE storage SET mtime=datetime('now'),rev=" + (rev + 1) + " WHERE id=" + storage;
+						dbcmd.CommandText = "UPDATE storage SET mtime=datetime('now'),rev=@rev WHERE id=@storage";
+						dbcmd.Parameters.Add(new SqliteParameter("rev", rev + 1));
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
 						dbcmd.ExecuteNonQuery();
 					}
 				
@@ -750,7 +795,7 @@ namespace Erasme.Cloud.Storage
 			return id;
 		}
 
-		public void ChangeComment(long id, long storage, long file, long user, string content, bool signal)
+		public void ChangeComment(long id, string storage, long file, string user, string content, bool signal)
 		{
 			long rev = 0;
 
@@ -759,7 +804,8 @@ namespace Erasme.Cloud.Storage
 					// get storage revision
 					using (IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "SELECT rev FROM storage WHERE id=" + storage;
+						dbcmd.CommandText = "SELECT rev FROM storage WHERE id=@storage";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
 						using (IDataReader reader = dbcmd.ExecuteReader()) {
 							if (!reader.Read ())
 								throw new Exception("Create fails, storage not found");
@@ -773,7 +819,9 @@ namespace Erasme.Cloud.Storage
 					// get old file infos
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "SELECT rev FROM file WHERE storage_id="+storage+" AND id="+file;
+						dbcmd.CommandText = "SELECT rev FROM file WHERE storage_id=@storage AND id=@file";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
 						using(IDataReader reader = dbcmd.ExecuteReader()) {
 							if(!reader.Read ())
 								throw new Exception("Change fails, file not found");
@@ -785,9 +833,13 @@ namespace Erasme.Cloud.Storage
 					// update comment table
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "UPDATE comment SET content='"+content.Replace("'", "''")+"', "+
-							"user_id="+user.ToString()+", mtime=datetime('now') WHERE "+
-							"id="+id.ToString()+" AND file_id="+file.ToString();
+						dbcmd.CommandText = "UPDATE comment SET content=@content, "+
+							"user_id=@user, mtime=datetime('now') WHERE "+
+							"id=@id AND file_id=@file";
+						dbcmd.Parameters.Add(new SqliteParameter("content", content));
+						dbcmd.Parameters.Add(new SqliteParameter("user", user));
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
+						dbcmd.Parameters.Add(new SqliteParameter("id", id));
 						if (dbcmd.ExecuteNonQuery () != 1)
 							throw new Exception ("Comment change fails");
 					}
@@ -795,14 +847,19 @@ namespace Erasme.Cloud.Storage
 					// update the file
 					using (IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "UPDATE file SET mtime=datetime('now'),rev=" + (fileRev + 1) + " WHERE storage_id=" + storage + " AND id=" + file;
+						dbcmd.CommandText = "UPDATE file SET mtime=datetime('now'),rev=@rev WHERE storage_id=@storage AND id=@file";
+						dbcmd.Parameters.Add(new SqliteParameter("rev", fileRev + 1));
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
 						dbcmd.ExecuteNonQuery ();
 					}
 
 					// update the storage
 					using (IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "UPDATE storage SET mtime=datetime('now'),rev=" + (rev + 1) + " WHERE id=" + storage;
+						dbcmd.CommandText = "UPDATE storage SET mtime=datetime('now'),rev=@rev WHERE id=@storage";
+						dbcmd.Parameters.Add(new SqliteParameter("rev", rev + 1));
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
 						dbcmd.ExecuteNonQuery ();
 					}
 				
@@ -819,7 +876,7 @@ namespace Erasme.Cloud.Storage
 		}
 
 
-		public void DeleteComment(long storage, long file, long comment, bool signal)
+		public void DeleteComment(string storage, long file, long comment, bool signal)
 		{
 			long rev = 0;
 			lock(dbcon) {
@@ -827,7 +884,8 @@ namespace Erasme.Cloud.Storage
 					// get storage revision
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "SELECT rev FROM storage WHERE id="+storage;
+						dbcmd.CommandText = "SELECT rev FROM storage WHERE id=@storage";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
 						using(IDataReader reader = dbcmd.ExecuteReader()) {
 							if(!reader.Read())
 								throw new Exception("Delete fails, storage not found");
@@ -841,7 +899,9 @@ namespace Erasme.Cloud.Storage
 					// get old file infos
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "SELECT rev FROM file WHERE storage_id="+storage+" AND id="+file;
+						dbcmd.CommandText = "SELECT rev FROM file WHERE storage_id=@storage AND id=@file";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
 						using(IDataReader reader = dbcmd.ExecuteReader()) {
 							if(!reader.Read())
 								throw new Exception("Change fails, file not found");
@@ -853,8 +913,9 @@ namespace Erasme.Cloud.Storage
 					// delete the comment
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "DELETE FROM comment "+
-							"WHERE file_id="+file+" AND id="+comment;
+						dbcmd.CommandText = "DELETE FROM comment WHERE file_id=@file AND id=@comment";
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
+						dbcmd.Parameters.Add(new SqliteParameter("comment", comment));
 						if(dbcmd.ExecuteNonQuery() != 1)
 							throw new Exception("Comment delete fails");
 					}
@@ -862,14 +923,19 @@ namespace Erasme.Cloud.Storage
 					// update the file
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "UPDATE file SET mtime=datetime('now'),rev="+(fileRev+1)+" WHERE storage_id="+storage+" AND id="+file;
+						dbcmd.CommandText = "UPDATE file SET mtime=datetime('now'),rev=@rev WHERE storage_id=@storage AND id=@file";
+						dbcmd.Parameters.Add(new SqliteParameter("rev", fileRev + 1));
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
 						dbcmd.ExecuteNonQuery();
 					}
 
 					// update the storage
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "UPDATE storage SET mtime=datetime('now'),rev="+(rev+1)+" WHERE id="+storage;
+						dbcmd.CommandText = "UPDATE storage SET mtime=datetime('now'),rev=@rev WHERE id=@storage";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+						dbcmd.Parameters.Add(new SqliteParameter("rev", rev + 1));
 						dbcmd.ExecuteNonQuery();
 					}
 				
@@ -883,7 +949,7 @@ namespace Erasme.Cloud.Storage
 			}
 		}
 
-		public delegate void FileDeletedEventHandler(long storage, long file);
+		public delegate void FileDeletedEventHandler(string storage, long file);
 		List<FileDeletedEventHandler> fileDeletedHandlers = new List<FileDeletedEventHandler>();
 		public event FileDeletedEventHandler FileDeleted {
 			add {
@@ -897,7 +963,7 @@ namespace Erasme.Cloud.Storage
 				}
 			}
 		}
-		void RaisesFileDeleted(long storage, long file)
+		void RaisesFileDeleted(string storage, long file)
 		{
 			List<FileDeletedEventHandler> handlers;
 			lock(fileDeletedHandlers) {
@@ -913,7 +979,7 @@ namespace Erasme.Cloud.Storage
 			}
 		}
 		
-		public bool DeleteFile(long storage, long file)
+		public bool DeleteFile(string storage, long file)
 		{
 			long rev = 0;
 			List<long> childs = new List<long>();
@@ -924,7 +990,8 @@ namespace Erasme.Cloud.Storage
 					long parent_id = 0;
 					// get the file info
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-						dbcmd.CommandText = "SELECT mimetype,size,parent_id FROM file WHERE id="+file;
+						dbcmd.CommandText = "SELECT mimetype,size,parent_id FROM file WHERE id=@file";
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
 						dbcmd.Transaction = transaction;
 						using(IDataReader reader = dbcmd.ExecuteReader()) {
 							if(!reader.Read())
@@ -938,21 +1005,24 @@ namespace Erasme.Cloud.Storage
 					// delete the meta
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "DELETE FROM meta WHERE owner_id="+file;
+						dbcmd.CommandText = "DELETE FROM meta WHERE owner_id=@file";
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
 						dbcmd.ExecuteNonQuery();
 					}
 
 					// delete the comments
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "DELETE FROM comment WHERE file_id="+file;
+						dbcmd.CommandText = "DELETE FROM comment WHERE file_id=@file";
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
 						dbcmd.ExecuteNonQuery();
 					}
 
 					// delete the file storage table
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "DELETE FROM file WHERE id="+file;
+						dbcmd.CommandText = "DELETE FROM file WHERE id=@file";
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
 						if(dbcmd.ExecuteNonQuery() != 1)
 							throw new Exception("File delete fails, file not found");
 					}
@@ -961,7 +1031,8 @@ namespace Erasme.Cloud.Storage
 					// get storage quota used
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "SELECT used,rev FROM storage WHERE id="+storage;
+						dbcmd.CommandText = "SELECT used,rev FROM storage WHERE id=@storage";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
 						using(IDataReader reader = dbcmd.ExecuteReader()) {
 							if(!reader.Read())
 								throw new Exception("Delete fails, storage not found");
@@ -974,7 +1045,10 @@ namespace Erasme.Cloud.Storage
 					// update the storage
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "UPDATE storage SET mtime=datetime('now'),used="+Math.Max(0,used-size)+",rev="+(rev+1)+" WHERE id="+storage;
+						dbcmd.CommandText = "UPDATE storage SET mtime=datetime('now'),used=@used,rev=@rev WHERE id=@storage";
+						dbcmd.Parameters.Add(new SqliteParameter("used", Math.Max(0,used-size)));
+						dbcmd.Parameters.Add(new SqliteParameter("rev", rev + 1));
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
 						dbcmd.ExecuteNonQuery();
 					}
 				
@@ -987,7 +1061,8 @@ namespace Erasme.Cloud.Storage
 				
 					// select the children of the current file to delete them
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-						dbcmd.CommandText = "SELECT id FROM file WHERE parent_id="+file;
+						dbcmd.CommandText = "SELECT id FROM file WHERE parent_id=@file";
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
 						dbcmd.Transaction = transaction;
 						using(IDataReader reader = dbcmd.ExecuteReader()) {
 							while(reader.Read()) {
@@ -1011,12 +1086,14 @@ namespace Erasme.Cloud.Storage
 			return true;
 		}
 		
-		public void GetDownloadFileInfo(long storage, long file, out string mimetype, out string filename, out long rev)
+		public void GetDownloadFileInfo(string storage, long file, out string mimetype, out string filename, out long rev)
 		{
 			lock(dbcon) {
 				// get the insert id
 				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-					dbcmd.CommandText = "SELECT mimetype,name,rev FROM file WHERE storage_id="+storage+" AND id="+file;
+					dbcmd.CommandText = "SELECT mimetype,name,rev FROM file WHERE storage_id=@storage AND id=@file";
+					dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+					dbcmd.Parameters.Add(new SqliteParameter("file", file));
 					using(IDataReader reader = dbcmd.ExecuteReader()) {
 						if(!reader.Read())
 							throw new Exception("File not found");
@@ -1032,7 +1109,7 @@ namespace Erasme.Cloud.Storage
 			}
 		}
 		
-		public void GetFileInfo(long storage, long file, out long parent, out string mimetype, out string name, out long ctime, out long mtime, out long rev, out long size, out long position, out Dictionary<string,string> meta)
+		public void GetFileInfo(string storage, long file, out long parent, out string mimetype, out string name, out long ctime, out long mtime, out long rev, out long size, out long position, out Dictionary<string,string> meta)
 		{
 			lock(dbcon) {
 				using(IDbTransaction transaction = dbcon.BeginTransaction()) {
@@ -1040,7 +1117,9 @@ namespace Erasme.Cloud.Storage
 					// get file infos
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "SELECT parent_id,mimetype,name,strftime('%s',ctime),strftime('%s',mtime),rev,size,position FROM file WHERE storage_id="+storage+" AND id="+file;
+						dbcmd.CommandText = "SELECT parent_id,mimetype,name,strftime('%s',ctime),strftime('%s',mtime),rev,size,position FROM file WHERE storage_id=@storage AND id=@file";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
 						using(IDataReader reader = dbcmd.ExecuteReader()) {
 							if(!reader.Read())
 								throw new Exception("File not found");
@@ -1061,7 +1140,8 @@ namespace Erasme.Cloud.Storage
 					meta = new Dictionary<string, string>();
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "SELECT key,value FROM meta WHERE owner_id="+file;
+						dbcmd.CommandText = "SELECT key,value FROM meta WHERE owner_id=@file";
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
 						using(IDataReader reader = dbcmd.ExecuteReader()) {
 							while(reader.Read()) {
 								string key = reader.GetString(0);
@@ -1078,7 +1158,7 @@ namespace Erasme.Cloud.Storage
 			}
 		}
 		
-		public delegate void FileChangedEventHandler(long storage, long file);
+		public delegate void FileChangedEventHandler(string storage, long file);
 		List<FileChangedEventHandler> fileChangedHandlers = new List<FileChangedEventHandler>();
 		public event FileChangedEventHandler FileChanged {
 			add {
@@ -1092,7 +1172,7 @@ namespace Erasme.Cloud.Storage
 				}
 			}
 		}
-		void RaisesFileChanged(long storage, long file)
+		void RaisesFileChanged(string storage, long file)
 		{
 			List<FileChangedEventHandler> handlers;
 			lock(fileChangedHandlers) {
@@ -1108,7 +1188,7 @@ namespace Erasme.Cloud.Storage
 			}
 		}
 
-		public bool ChangeFile(long storage, long file, string tmpFile, JsonValue define)
+		public bool ChangeFile(string storage, long file, string tmpFile, JsonValue define)
 		{			
 			long rev = 0;
 			lock(dbcon) {
@@ -1124,7 +1204,8 @@ namespace Erasme.Cloud.Storage
 					long quota, used = 0;
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "SELECT quota,used,rev FROM storage WHERE id="+storage;
+						dbcmd.CommandText = "SELECT quota,used,rev FROM storage WHERE id=@storage";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
 						using(IDataReader reader = dbcmd.ExecuteReader()) {
 							if(!reader.Read())
 								return false;
@@ -1143,7 +1224,9 @@ namespace Erasme.Cloud.Storage
 					// get old file infos
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "SELECT size,rev,parent_id,position FROM file WHERE storage_id="+storage+" AND id="+file;
+						dbcmd.CommandText = "SELECT size,rev,parent_id,position FROM file WHERE storage_id=@storage AND id=@file";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
 						using(IDataReader reader = dbcmd.ExecuteReader()) {
 							if(!reader.Read())
 								throw new Exception("Change fails, file not found");
@@ -1164,7 +1247,7 @@ namespace Erasme.Cloud.Storage
 					long newPosition = -1;
 				
 					// update file request
-					if(define.ContainsKey("name") || define.ContainsKey("parent") || define.ContainsKey("position") || (tmpFile != null)) {
+					if(define.ContainsKey("name") || define.ContainsKey("parent_id") || define.ContainsKey("position") || (tmpFile != null)) {
 						string sql = "UPDATE file SET ";
 						bool first = true;
 						if(define.ContainsKey("name")) {
@@ -1174,12 +1257,12 @@ namespace Erasme.Cloud.Storage
 								sql += ", ";
 							sql += "name='"+((string)define["name"]).Replace("'","''")+"'";
 						}
-						if(define.ContainsKey("parent")) {
+						if(define.ContainsKey("parent_id")) {
 							if(first)
 								first = false;
 							else
 								sql += ", ";
-							newParentId = (long)define["parent"];
+							newParentId = (long)define["parent_id"];
 							sql += "parent_id="+newParentId;
 
 							long tmpPosition = Int64.MaxValue/4;
@@ -1249,7 +1332,8 @@ namespace Erasme.Cloud.Storage
 						// delete all old meta
 						using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 							dbcmd.Transaction = transaction;
-							dbcmd.CommandText = "DELETE FROM meta WHERE owner_id="+file;
+							dbcmd.CommandText = "DELETE FROM meta WHERE owner_id=@file";
+							dbcmd.Parameters.Add(new SqliteParameter("file", file));
 							dbcmd.ExecuteNonQuery();
 						}
 						
@@ -1258,7 +1342,10 @@ namespace Erasme.Cloud.Storage
 							string value = oldMeta[key];
 							using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 								dbcmd.Transaction = transaction;
-								dbcmd.CommandText = "INSERT INTO meta (owner_id,key,value) VALUES ("+file+",'"+key.Replace("'","''")+"','"+value.Replace("'","''")+"')";
+								dbcmd.CommandText = "INSERT INTO meta (owner_id,key,value) VALUES (@file,@key,@value)";
+								dbcmd.Parameters.Add(new SqliteParameter("file", file));
+								dbcmd.Parameters.Add(new SqliteParameter("key", key));
+								dbcmd.Parameters.Add(new SqliteParameter("value", value));
 								dbcmd.ExecuteNonQuery();
 							}
 						}
@@ -1275,7 +1362,10 @@ namespace Erasme.Cloud.Storage
 					// update the storage
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "UPDATE storage SET mtime=datetime('now'),used="+Math.Max(0,used-oldSize+size)+",rev="+(rev+1)+" WHERE id="+storage;
+						dbcmd.CommandText = "UPDATE storage SET mtime=datetime('now'),used=@used,rev=@rev WHERE id=@storage";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+						dbcmd.Parameters.Add(new SqliteParameter("used", Math.Max(0,used-oldSize+size)));
+						dbcmd.Parameters.Add(new SqliteParameter("rev", rev + 1));
 						dbcmd.ExecuteNonQuery();
 					}
 
@@ -1293,7 +1383,7 @@ namespace Erasme.Cloud.Storage
 			return true;
 		}
 
-		void CleanPositions(IDbConnection dbcon, IDbTransaction transaction, long storage, long parent)
+		void CleanPositions(IDbConnection dbcon, IDbTransaction transaction, string storage, long parent)
 		{
 			List<long> files = new List<long>();
 			// get all files of a directory
@@ -1301,7 +1391,9 @@ namespace Erasme.Cloud.Storage
 			bool cleanNeeded = false;
 			using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 				dbcmd.Transaction = transaction;
-				dbcmd.CommandText = "SELECT id,position FROM file WHERE storage_id="+storage+" AND parent_id="+parent+" ORDER BY position ASC";
+				dbcmd.CommandText = "SELECT id,position FROM file WHERE storage_id=@storage AND parent_id=@parent ORDER BY position ASC";
+				dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+				dbcmd.Parameters.Add(new SqliteParameter("parent", parent));
 				using(IDataReader reader = dbcmd.ExecuteReader()) {
 					while(reader.Read()) {
 						files.Add(reader.GetInt64(0));
@@ -1317,7 +1409,10 @@ namespace Erasme.Cloud.Storage
 				foreach(long file in files) {
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 						dbcmd.Transaction = transaction;
-						dbcmd.CommandText = "UPDATE file SET position="+((i * 2)+1)+" WHERE storage_id="+storage+ " AND id="+file;
+						dbcmd.CommandText = "UPDATE file SET position=@position WHERE storage_id=@storage AND id=@file";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
+						dbcmd.Parameters.Add(new SqliteParameter("position", (i * 2)+1));
 						dbcmd.ExecuteNonQuery();
 					}
 					i++;
@@ -1325,12 +1420,12 @@ namespace Erasme.Cloud.Storage
 			}
 		}
 
-		public string GetFullPath(long storage, long file)
+		public string GetFullPath(string storage, long file)
 		{
 			return basePath+"/"+storage+"/"+file;
 		}
 		
-		public JsonValue GetFileInfo(long storage, long file, int depth)
+		public JsonValue GetFileInfo(string storage, long file, int depth)
 		{
 			JsonValue res = new JsonObject();
 			lock(dbcon) {
@@ -1348,7 +1443,7 @@ namespace Erasme.Cloud.Storage
 			return res;
 		}
 
-		public JsonValue GetFileInfo(IDbConnection dbcon, IDbTransaction transaction, long storage, long file, int depth)
+		public JsonValue GetFileInfo(IDbConnection dbcon, IDbTransaction transaction, string storage, long file, int depth)
 		{
 			JsonValue res = new JsonObject();
 
@@ -1365,7 +1460,9 @@ namespace Erasme.Cloud.Storage
 			if(file != 0) {
 				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 					dbcmd.Transaction = transaction;
-					dbcmd.CommandText = "SELECT parent_id,name,mimetype,strftime('%s',ctime),strftime('%s',mtime),rev,size,position FROM file WHERE storage_id=" + storage + " AND id=" + file;
+					dbcmd.CommandText = "SELECT parent_id,name,mimetype,strftime('%s',ctime),strftime('%s',mtime),rev,size,position FROM file WHERE storage_id=@storage AND id=@file";
+					dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+					dbcmd.Parameters.Add(new SqliteParameter("file", file));
 					using(IDataReader reader = dbcmd.ExecuteReader()) {
 						if(!reader.Read())
 							return null;
@@ -1384,7 +1481,8 @@ namespace Erasme.Cloud.Storage
 			// check if storage exists
 			else {
 				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-					dbcmd.CommandText = "SELECT strftime('%s',ctime),strftime('%s',mtime) FROM storage WHERE id="+storage.ToString();
+					dbcmd.CommandText = "SELECT strftime('%s',ctime),strftime('%s',mtime) FROM storage WHERE id=@storage";
+					dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
 					using(IDataReader reader = dbcmd.ExecuteReader()) {
 						if(!reader.Read())
 							return null;
@@ -1408,7 +1506,8 @@ namespace Erasme.Cloud.Storage
 			// select meta
 			using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 				dbcmd.Transaction = transaction;
-				dbcmd.CommandText = "SELECT key,value FROM meta WHERE owner_id="+file;
+				dbcmd.CommandText = "SELECT key,value FROM meta WHERE owner_id=@file";
+				dbcmd.Parameters.Add(new SqliteParameter("file", file));
 				using(IDataReader reader = dbcmd.ExecuteReader()) {
 					JsonValue meta = new JsonObject();
 					res["meta"] = meta;
@@ -1420,14 +1519,15 @@ namespace Erasme.Cloud.Storage
 			// select comment
 			using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 				dbcmd.Transaction = transaction;
-				dbcmd.CommandText = "SELECT id,user_id,content,strftime('%s',ctime),strftime('%s',mtime) FROM comment WHERE file_id="+file+" ORDER BY ctime DESC";
+				dbcmd.CommandText = "SELECT id,user_id,content,strftime('%s',ctime),strftime('%s',mtime) FROM comment WHERE file_id=@file ORDER BY ctime DESC";
+				dbcmd.Parameters.Add(new SqliteParameter("file", file));
 				using(IDataReader reader = dbcmd.ExecuteReader()) {
 					JsonArray comments = new JsonArray();
 					res["comments"] = comments;
 					while(reader.Read()) {
 						JsonValue comment = new JsonObject();
 						comment["id"] = reader.GetInt64(0);
-						comment["user"] = reader.GetInt64(1);
+						comment["user"] = reader.GetString(1);
 						comment["content"] = reader.GetString(2);
 						comment["ctime"] = Convert.ToInt64(reader.GetString(3));
 						if(!reader.IsDBNull(4))
@@ -1445,7 +1545,9 @@ namespace Erasme.Cloud.Storage
 
 				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 					dbcmd.Transaction = transaction;
-					dbcmd.CommandText = "SELECT id FROM file WHERE parent_id="+file+" AND storage_id="+storage+" ORDER BY position ASC";
+					dbcmd.CommandText = "SELECT id FROM file WHERE parent_id=@file AND storage_id=@storage ORDER BY position ASC";
+					dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+					dbcmd.Parameters.Add(new SqliteParameter("file", file));
 					using(IDataReader reader = dbcmd.ExecuteReader()) {
 						if(reader.Read()) {
 							JsonArray children = new JsonArray();
@@ -1469,11 +1571,11 @@ namespace Erasme.Cloud.Storage
 			long id3 = 0;
 
 			// WS /[storage] monitor changes in a storage
-			if((context.Request.IsWebSocketRequest) && (parts.Length == 1) && long.TryParse(parts[0], out id)) {
+			if((context.Request.IsWebSocketRequest) && (parts.Length == 1)) {
+				string storage = parts[0];
+				Rights.EnsureCanReadStorage(context, storage);
 
-				Rights.EnsureCanReadStorage(context, id);
-
-				await context.AcceptWebSocketRequestAsync(new MonitorClient(this, id));
+				await context.AcceptWebSocketRequestAsync(new MonitorClient(this, storage));
 			}
 			// POST / create a storage
 			else if((context.Request.Method == "POST") && (parts.Length == 0)) {
@@ -1481,30 +1583,33 @@ namespace Erasme.Cloud.Storage
 
 				Rights.EnsureCanCreateStorage(context);
 
+				string storage = null;
+				if(json.ContainsKey("id"))
+					storage = (string)json["id"];
 				long quota = (long)json["quota"];
-				long storage = CreateStorage(quota);
+				storage = CreateStorage(storage, quota);
 				
 				context.Response.StatusCode = 200;
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				context.Response.Content = new JsonContent(GetStorageInfo(storage));
 			}
 			// DELETE /[storage] delete a storage
-			else if((context.Request.Method == "DELETE") && (parts.Length == 1) && long.TryParse(parts[0], out id)) {
+			else if((context.Request.Method == "DELETE") && (parts.Length == 1)) {
 
-				Rights.EnsureCanDeleteStorage(context, id);
+				Rights.EnsureCanDeleteStorage(context, parts[0]);
 
-				DeleteStorage(id);
+				DeleteStorage(parts[0]);
 				context.Response.StatusCode = 200;
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 			}
 			// PUT /[storage]  change a storage
 			else if((context.Request.Method == "PUT") && (parts.Length == 1) && long.TryParse(parts[0], out id)) {
-
-				Rights.EnsureCanUpdateStorage(context, id);
+				string storage = parts[0];
+				Rights.EnsureCanUpdateStorage(context, storage);
 
 				JsonValue json = await context.Request.ReadAsJsonAsync();
-				if(ChangeStorage(id, json)) {
-					JsonValue info = GetStorageInfo(id);
+				if(ChangeStorage(storage, json)) {
+					JsonValue info = GetStorageInfo(storage);
 					if(info != null) {
 						context.Response.StatusCode = 200;
 						context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
@@ -1519,12 +1624,12 @@ namespace Erasme.Cloud.Storage
 				}
 			}
 			// GET /[storage] get storage info
-			else if((context.Request.Method == "GET") && (parts.Length == 1) && long.TryParse(parts[0], out id)) {
-
-				Rights.EnsureCanReadStorage(context, id);
+			else if((context.Request.Method == "GET") && (parts.Length == 1)) {
+				string storage = parts[0];
+				Rights.EnsureCanReadStorage(context, storage);
 
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
-				JsonValue info = GetStorageInfo(id);
+				JsonValue info = GetStorageInfo(storage);
 				if(info == null) {
 					context.Response.StatusCode = 404;
 				}
@@ -1534,8 +1639,8 @@ namespace Erasme.Cloud.Storage
 				}
 			}
 			// POST /[storage]/[parent] create a file
-			else if((context.Request.Method == "POST") && (parts.Length == 2) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2)) {
-				long storage = id;
+			else if((context.Request.Method == "POST") && (parts.Length == 2) && long.TryParse(parts[1], out id2)) {
+				string storage = parts[0];
 				long parent = id2;
 
 				Rights.EnsureCanCreateFile(context, storage);
@@ -1611,8 +1716,8 @@ namespace Erasme.Cloud.Storage
 				context.Response.Content = new JsonContent(GetFileInfo(storage, file, 0));
 			}
 			// GET /[storage]/[file] get file info
-			else if((context.Request.Method == "GET") && (parts.Length == 2) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2)) {
-				long storage = id;
+			else if((context.Request.Method == "GET") && (parts.Length == 2) && long.TryParse(parts[1], out id2)) {
+				string storage = parts[0];
 				long file = id2;
 
 				Rights.EnsureCanReadFile(context, storage);
@@ -1631,8 +1736,8 @@ namespace Erasme.Cloud.Storage
 				}
 			}
 			// GET /[storage]/[file]/content get file content
-			else if((context.Request.Method == "GET") && (parts.Length == 3) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2) && (parts[2] == "content")) {
-				long storage = id;
+			else if((context.Request.Method == "GET") && (parts.Length == 3) && long.TryParse(parts[1], out id2) && (parts[2] == "content")) {
+				string storage = parts[0];
 				long file = id2;
 
 				Rights.EnsureCanReadFile(context, storage);
@@ -1670,8 +1775,8 @@ namespace Erasme.Cloud.Storage
 				}
 			}
 			// DELETE /[storage]/[file] delete a file
-			else if((context.Request.Method == "DELETE") && (parts.Length == 2) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2)) {
-				long storage = id;
+			else if((context.Request.Method == "DELETE") && (parts.Length == 2) && long.TryParse(parts[1], out id2)) {
+				string storage = parts[0];
 				long file = id2;
 
 				Rights.EnsureCanDeleteFile(context, storage);
@@ -1683,8 +1788,8 @@ namespace Erasme.Cloud.Storage
 					context.Response.StatusCode = 404;
 			}
 			// PUT /[storage]/[file] modify a file
-			else if((context.Request.Method == "PUT") && (parts.Length == 2) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2)) {
-				long storage = id;
+			else if((context.Request.Method == "PUT") && (parts.Length == 2) && long.TryParse(parts[1], out id2)) {
+				string storage = parts[0];
 				long file = id2;
 
 				Rights.EnsureCanUpdateFile(context, storage);
@@ -1726,33 +1831,35 @@ namespace Erasme.Cloud.Storage
 				}
 			}
 			// POST /[storage]/[file]/comments  create a comment 
-			else if((context.Request.Method == "POST") && (parts.Length == 3) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2) && (parts[2] == "comments")) {
+			else if((context.Request.Method == "POST") && (parts.Length == 3) && long.TryParse(parts[1], out id2) && (parts[2] == "comments")) {
+				string storage = parts[0];
 				JsonValue define = await context.Request.ReadAsJsonAsync();
 
-				Rights.EnsureCanCreateComment(context, id, id2, (long)define["user"]);
+				Rights.EnsureCanCreateComment(context, storage, id2, (string)define["user"]);
 
-				CreateComment(id, id2, (long)define["user"], (string)define["content"], true);
+				CreateComment(storage, id2, (string)define["user"], (string)define["content"], true);
 
 				context.Response.StatusCode = 200;
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 			}
 			// PUT /[storage]/[file]/comments/[comment]  modify a comment 
-			else if((context.Request.Method == "PUT") && (parts.Length == 4) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2) && (parts[2] == "comments") && long.TryParse(parts[3], out id3)) {
+			else if((context.Request.Method == "PUT") && (parts.Length == 4) && long.TryParse(parts[1], out id2) && (parts[2] == "comments") && long.TryParse(parts[3], out id3)) {
+				string storage = parts[0];
 				JsonValue define = await context.Request.ReadAsJsonAsync();
 
-				Rights.EnsureCanUpdateComment(context, id, id2, id3);
+				Rights.EnsureCanUpdateComment(context, storage, id2, id3);
 
-				ChangeComment(id3, id, id2, (long)define["user"], (string)define["content"], true);
+				ChangeComment(id3, storage, id2, (string)define["user"], (string)define["content"], true);
 
 				context.Response.StatusCode = 200;
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 			}
 			// DELETE /[storage]/[file]/comments/[comment] delete a comment
-			else if((context.Request.Method == "DELETE") && (parts.Length == 4) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2) && (parts[2] == "comments") && long.TryParse(parts[3], out id3)) {
+			else if((context.Request.Method == "DELETE") && (parts.Length == 4) && long.TryParse(parts[1], out id2) && (parts[2] == "comments") && long.TryParse(parts[3], out id3)) {
+				string storage = parts[0];
+				Rights.EnsureCanDeleteComment(context, storage, id2, id3);
 
-				Rights.EnsureCanDeleteComment(context, id, id2, id3);
-
-				DeleteComment(id, id2, id3, true);
+				DeleteComment(storage, id2, id3, true);
 
 				context.Response.StatusCode = 200;
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";

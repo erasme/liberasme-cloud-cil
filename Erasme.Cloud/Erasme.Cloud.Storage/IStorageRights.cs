@@ -37,25 +37,25 @@ namespace Erasme.Cloud.Storage
 	{	
 		void EnsureCanCreateStorage(HttpContext context);
 	
-		void EnsureCanUpdateStorage(HttpContext context, long storage);
+		void EnsureCanUpdateStorage(HttpContext context, string storage);
 
-		void EnsureCanReadStorage(HttpContext context, long storage);
+		void EnsureCanReadStorage(HttpContext context, string storage);
 
-		void EnsureCanDeleteStorage(HttpContext context, long storage);
+		void EnsureCanDeleteStorage(HttpContext context, string storage);
 
-		void EnsureCanCreateFile(HttpContext context, long storage);
+		void EnsureCanCreateFile(HttpContext context, string storage);
 
-		void EnsureCanReadFile(HttpContext context, long storage);
+		void EnsureCanReadFile(HttpContext context, string storage);
 
-		void EnsureCanUpdateFile(HttpContext context, long storage);
+		void EnsureCanUpdateFile(HttpContext context, string storage);
 		
-		void EnsureCanDeleteFile(HttpContext context, long storage);
+		void EnsureCanDeleteFile(HttpContext context, string storage);
 
-		void EnsureCanCreateComment(HttpContext context, long storage, long file, long user);
+		void EnsureCanCreateComment(HttpContext context, string storage, long file, string user);
 
-		void EnsureCanUpdateComment(HttpContext context, long storage, long file, long comment);
+		void EnsureCanUpdateComment(HttpContext context, string storage, long file, long comment);
 
-		void EnsureCanDeleteComment(HttpContext context, long storage, long file, long comment);
+		void EnsureCanDeleteComment(HttpContext context, string storage, long file, long comment);
 	}
 
 	public class DummyStorageRights: IStorageRights
@@ -64,43 +64,43 @@ namespace Erasme.Cloud.Storage
 		{
 		}
 
-		public void EnsureCanUpdateStorage(HttpContext context, long storage)
+		public void EnsureCanUpdateStorage(HttpContext context, string storage)
 		{
 		}
 
-		public void EnsureCanReadStorage(HttpContext context, long storage)
+		public void EnsureCanReadStorage(HttpContext context, string storage)
 		{
 		}
 
-		public void EnsureCanDeleteStorage(HttpContext context, long storage)
+		public void EnsureCanDeleteStorage(HttpContext context, string storage)
 		{
 		}
 
-		public void EnsureCanReadFile(HttpContext context, long storage)
+		public void EnsureCanReadFile(HttpContext context, string storage)
 		{
 		}
 
-		public void EnsureCanCreateFile(HttpContext context, long storage)
+		public void EnsureCanCreateFile(HttpContext context, string storage)
 		{
 		}
 
-		public void EnsureCanUpdateFile(HttpContext context, long storage)
+		public void EnsureCanUpdateFile(HttpContext context, string storage)
 		{
 		}
 
-		public void EnsureCanDeleteFile(HttpContext context, long storage)
+		public void EnsureCanDeleteFile(HttpContext context, string storage)
 		{
 		}
 
-		public void EnsureCanCreateComment(HttpContext context, long storage, long file, long user)
+		public void EnsureCanCreateComment(HttpContext context, string storage, long file, string user)
 		{
 		}
 
-		public void EnsureCanUpdateComment(HttpContext context, long storage, long file, long comment)
+		public void EnsureCanUpdateComment(HttpContext context, string storage, long file, long comment)
 		{
 		}
 
-		public void EnsureCanDeleteComment(HttpContext context, long storage, long file, long comment)
+		public void EnsureCanDeleteComment(HttpContext context, string storage, long file, long comment)
 		{
 		}
 	}

@@ -76,7 +76,7 @@ namespace Erasme.Cloud.Audio
 			return res;
 		}
 
-		void BuildMp3(long storage, long file)
+		void BuildMp3(string storage, long file)
 		{
 			string mimetype;
 			string filename;
@@ -123,7 +123,7 @@ namespace Erasme.Cloud.Audio
 			}
 		}
 
-		void BuildOgg(long storage, long file)
+		void BuildOgg(string storage, long file)
 		{
 			string mimetype;
 			string filename;
@@ -170,7 +170,7 @@ namespace Erasme.Cloud.Audio
 			}
 		}
 
-		void OnFileCreated(long storage, long file) 
+		void OnFileCreated(string storage, long file) 
 		{
 			string mimetype;
 			string filename;
@@ -193,12 +193,12 @@ namespace Erasme.Cloud.Audio
 			}
 		}
 		
-		void OnFileChanged(long storage, long file)
+		void OnFileChanged(string storage, long file)
 		{
 			// TODO: rebuild the converted files
 		}
 		
-		void OnFileDeleted(long storage, long file)
+		void OnFileDeleted(string storage, long file)
 		{
 			// delete the MP3 file
 			if(File.Exists(basePath+"/"+storage+"/mp3/"+file))
@@ -208,7 +208,7 @@ namespace Erasme.Cloud.Audio
 				File.Delete(basePath+"/"+storage+"/ogg/"+file);
 		}
 		
-		void OnStorageDeleted(long storage)
+		void OnStorageDeleted(string storage)
 		{
 			if(Directory.Exists(basePath+"/"+storage))
 				Directory.Delete(basePath+"/"+storage, true);
@@ -217,11 +217,11 @@ namespace Erasme.Cloud.Audio
 		public override void ProcessRequest(HttpContext context)
 		{
 			string[] parts = context.Request.Path.Split(new char[] { '/' }, System.StringSplitOptions.RemoveEmptyEntries);
-			long id = 0;
-			long id2 = 0;
+			long file = 0;
 
 			// GET /[storage]/[file] get audio content 
-			if((context.Request.Method == "GET") && (parts.Length == 2) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2)) {
+			if((context.Request.Method == "GET") && (parts.Length == 2) && long.TryParse(parts[1], out file)) {
+				string storage = parts[0];
 				string format = "mp3";
 				if(context.Request.QueryString.ContainsKey("format"))
 					format = context.Request.QueryString["format"];
@@ -234,7 +234,7 @@ namespace Erasme.Cloud.Audio
 				string mimetype = "audio/mpeg";
 				if(format == "ogg")
 					mimetype = "audio/ogg";
-				string fileName = basePath+"/"+id+"/"+format+"/"+id2;
+				string fileName = basePath+"/"+storage+"/"+format+"/"+file;
 				if(File.Exists(fileName)) {
 					context.Response.StatusCode = 200;
 					context.Response.Headers["content-type"] = mimetype;
@@ -248,10 +248,11 @@ namespace Erasme.Cloud.Audio
 				}
 			}
 			// GET /[storage]/[file]/info get audio info
-			else if((context.Request.Method == "GET") && (parts.Length == 3) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2) && (parts[2] == "info")) {
+			else if((context.Request.Method == "GET") && (parts.Length == 3) && long.TryParse(parts[1], out file) && (parts[2] == "info")) {
+				string storage = parts[0];
 				JsonValue json = new JsonObject();
-				json["storage"] = id;
-				json["file"] = id2;
+				json["storage"] = storage;
+				json["file"] = file;
 				string format = "mp3";
 				if(context.Request.Headers.ContainsKey("user-agent")) {
 					if((context.Request.Headers["user-agent"].IndexOf("Firefox/") >= 0) ||
@@ -263,25 +264,25 @@ namespace Erasme.Cloud.Audio
 				json["status"] = status;
 
 				lock(instanceLock) {
-					if(File.Exists(basePath+"/"+id+"/mp3/"+id2))
+					if(File.Exists(basePath+"/"+storage+"/mp3/"+file))
 						status["mp3"] = "ready";
 					else {
-						if(runningTasks.ContainsKey(id+":"+id2+":mp3"))
+						if(runningTasks.ContainsKey(storage+":"+file+":mp3"))
 							status["mp3"] = "building";
 						else {
-							Task task = longRunningTaskFactory.StartNew(delegate { BuildMp3(id, id2); });
-							runningTasks[id+":"+id2+":mp3"] = task;
+							Task task = longRunningTaskFactory.StartNew(delegate { BuildMp3(storage, file); });
+							runningTasks[storage+":"+file+":mp3"] = task;
 							status["mp3"] = "building";
 						}
 					}
-					if(File.Exists(basePath+"/"+id+"/ogg/"+id2))
+					if(File.Exists(basePath+"/"+storage+"/ogg/"+file))
 						status["ogg"] = "ready";
 					else {
-						if(runningTasks.ContainsKey(id+":"+id2+":ogg"))
+						if(runningTasks.ContainsKey(storage+":"+file+":ogg"))
 							status["ogg"] = "building";
 						else {
-							Task task = longRunningTaskFactory.StartNew(delegate { BuildOgg(id, id2); });
-							runningTasks[id+":"+id2+":ogg"] = task;
+							Task task = longRunningTaskFactory.StartNew(delegate { BuildOgg(storage, file); });
+							runningTasks[storage+":"+file+":ogg"] = task;
 							status["ogg"] = "building";
 						}
 					}

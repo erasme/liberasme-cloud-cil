@@ -143,7 +143,7 @@ namespace Erasme.Cloud.Preview
 			if(createNeeded) {
 				// create the preview table
 				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-					dbcmd.CommandText = "CREATE TABLE preview (id INTEGER PRIMARY KEY AUTOINCREMENT, storage INTEGER, file INTEGER, rev INTEGER, mimetype VARCHAR, fails INTEGER(1))";
+					dbcmd.CommandText = "CREATE TABLE preview (id INTEGER PRIMARY KEY AUTOINCREMENT, storage VARCHAR, file INTEGER, rev INTEGER, mimetype VARCHAR, fails INTEGER(1))";
 					dbcmd.ExecuteNonQuery();
 				}
 			}
@@ -158,7 +158,7 @@ namespace Erasme.Cloud.Preview
 			Storage.FileDeleted += OnFileDeleted;
 		}
 		
-		void GetPreview(long storage, long file, out string previewMimetype, out string previewPath, out long rev, out bool fails)
+		void GetPreview(string storage, long file, out string previewMimetype, out string previewPath, out long rev, out bool fails)
 		{
 			string fileMimetype;
 			string fileName;
@@ -175,7 +175,9 @@ namespace Erasme.Cloud.Preview
 				lock(dbcon) {
 					// check existing preview
 					using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-						dbcmd.CommandText = "SELECT id,rev,mimetype,fails FROM preview WHERE storage="+storage+" AND file="+file;
+						dbcmd.CommandText = "SELECT id,rev,mimetype,fails FROM preview WHERE storage=@storage AND file=@file";
+						dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+						dbcmd.Parameters.Add(new SqliteParameter("file", file));
 						using(IDataReader reader = dbcmd.ExecuteReader()) {
 							while(reader.Read()) {
 								oldRev = reader.GetInt64(1);
@@ -195,16 +197,27 @@ namespace Erasme.Cloud.Preview
 						using(IDbTransaction transaction = dbcon.BeginTransaction()) {
 							// delete from db if any
 							using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-								dbcmd.CommandText = "DELETE FROM preview WHERE storage="+storage+" AND file="+file;
+								dbcmd.CommandText = "DELETE FROM preview WHERE storage=@storage AND file=@file";
+								dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+								dbcmd.Parameters.Add(new SqliteParameter("file", file));
 								dbcmd.Transaction = transaction;
 								dbcmd.ExecuteNonQuery();
 							}
 							// insert into db
 							using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-								if(fails)
-									dbcmd.CommandText = "INSERT INTO preview (storage,file,rev,mimetype,fails) VALUES ("+storage+","+file+","+rev+",null,1)";
-								else
-									dbcmd.CommandText = "INSERT INTO preview (storage,file,rev,mimetype,fails) VALUES ("+storage+","+file+","+rev+",'"+previewMimetype.Replace("'","''")+"',0)";
+								if(fails) {
+									dbcmd.CommandText = "INSERT INTO preview (storage,file,rev,mimetype,fails) VALUES (@storage,@file,@rev,null,1)";
+									dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+									dbcmd.Parameters.Add(new SqliteParameter("file", file));
+									dbcmd.Parameters.Add(new SqliteParameter("rev", rev));
+								}
+								else {
+									dbcmd.CommandText = "INSERT INTO preview (storage,file,rev,mimetype,fails) VALUES (@storage,@file,@rev,@mimetype,0)";
+									dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+									dbcmd.Parameters.Add(new SqliteParameter("file", file));
+									dbcmd.Parameters.Add(new SqliteParameter("rev", rev));
+									dbcmd.Parameters.Add(new SqliteParameter("mimetype", previewMimetype));
+								}
 								dbcmd.Transaction = transaction;
 								dbcmd.ExecuteNonQuery();
 							}
@@ -215,7 +228,7 @@ namespace Erasme.Cloud.Preview
 			}
 		}
 
-		void DeletePreview(long storage, long file)
+		void DeletePreview(string storage, long file)
 		{
 			using(Resource.Lock(storage+":"+file)) {
 				long oldId = -1;
@@ -224,7 +237,9 @@ namespace Erasme.Cloud.Preview
 					using(IDbTransaction transaction = dbcon.BeginTransaction()) {
 						// check existing preview
 						using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-							dbcmd.CommandText = "SELECT id FROM preview WHERE storage="+storage+" AND file="+file;
+							dbcmd.CommandText = "SELECT id FROM preview WHERE storage=@storage AND file=@file";
+							dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+							dbcmd.Parameters.Add(new SqliteParameter("file", file));
 							using(IDataReader reader = dbcmd.ExecuteReader()) {
 								while(reader.Read()) {
 									oldId = reader.GetInt64(0);
@@ -233,7 +248,9 @@ namespace Erasme.Cloud.Preview
 						}
 						if(oldId != -1) {
 							using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-								dbcmd.CommandText = "DELETE FROM preview WHERE storage="+storage+" AND file="+file;
+								dbcmd.CommandText = "DELETE FROM preview WHERE storage=@storage AND file=@file";
+								dbcmd.Parameters.Add(new SqliteParameter("storage", storage));
+								dbcmd.Parameters.Add(new SqliteParameter("file", file));
 								dbcmd.ExecuteNonQuery();
 							}
 						}
@@ -246,7 +263,7 @@ namespace Erasme.Cloud.Preview
 		}
 
 		
-		bool BuildPreview(long storage, long file, string filepath, string mimetype, out string previewMimetype, out string previewPath)
+		bool BuildPreview(string storage, long file, string filepath, string mimetype, out string previewMimetype, out string previewPath)
 		{
 			IPreview preview = null;
 			bool success = false;
@@ -291,7 +308,7 @@ namespace Erasme.Cloud.Preview
 			return success;
 		}
 		
-		void OnFileCreated(long storage, long file) 
+		void OnFileCreated(string storage, long file) 
 		{
 			string mimetype, filename;
 			long rev;
@@ -299,7 +316,7 @@ namespace Erasme.Cloud.Preview
 			GetPreview(storage, file, out mimetype, out filename, out rev, out fails);
 		}
 		
-		void OnFileChanged(long storage, long file)
+		void OnFileChanged(string storage, long file)
 		{
 			// rebuild the preview
 			string mimetype, filename;
@@ -308,7 +325,7 @@ namespace Erasme.Cloud.Preview
 			GetPreview(storage, file, out mimetype, out filename, out rev, out fails);
 		}
 		
-		void OnFileDeleted(long storage, long file)
+		void OnFileDeleted(string storage, long file)
 		{
 			// delete the preview file
 			DeletePreview(storage, file);
@@ -317,14 +334,12 @@ namespace Erasme.Cloud.Preview
 		public override void ProcessRequest(HttpContext context)
 		{	
 			string[] parts = context.Request.Path.Split(new char[] { '/' }, System.StringSplitOptions.RemoveEmptyEntries);
-			long id = 0;
-			long id2 = 0;
+			long file = 0;
 
 			// GET /[storage_id]/[file_id] get file preview
-			if((context.Request.Method == "GET") && (parts.Length == 2) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2)) {
+			if((context.Request.Method == "GET") && (parts.Length == 2) && long.TryParse(parts[1], out file)) {
 				// get the file
-				long storage = id;
-				long file = id2;
+				string storage = parts[0];
 
 				string previewMimetype;
 				string previewPath;

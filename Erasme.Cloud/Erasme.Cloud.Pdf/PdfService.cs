@@ -127,7 +127,7 @@ namespace Erasme.Cloud.Pdf
 			        (mimetype == "text/richtext"));
 		}
 
-		void OnFileCreated(long storage, long file) 
+		void OnFileCreated(string storage, long file) 
 		{
 			string mimetype;
 			string filename;
@@ -137,24 +137,24 @@ namespace Erasme.Cloud.Pdf
 				QueuePdfGenerate(storage, file);
 		}
 		
-		void OnFileChanged(long storage, long file)
+		void OnFileChanged(string storage, long file)
 		{
 			// TODO: rebuild the converted files
 		}
 		
-		void OnFileDeleted(long storage, long file)
+		void OnFileDeleted(string storage, long file)
 		{
 			if(Directory.Exists(basePath+"/"+storage+"/"+file))
 				Directory.Delete(basePath+"/"+storage+"/"+file, true);
 		}
 		
-		void OnStorageDeleted(long storage)
+		void OnStorageDeleted(string storage)
 		{
 			if(Directory.Exists(basePath+"/"+storage))
 				Directory.Delete(basePath+"/"+storage, true);
 		}
 
-		public void QueuePdfGenerate(long storage, long file)
+		public void QueuePdfGenerate(string storage, long file)
 		{
 			lock(instanceLock) {
 				if(!runningTasks.ContainsKey(storage+":"+file)) {
@@ -174,12 +174,12 @@ namespace Erasme.Cloud.Pdf
 			}
 		}
 
-		void PdfGenerate(long storage, long file)
+		void PdfGenerate(string storage, long file)
 		{
 			BuildPdf(storage, file);
 		}
 
-		public JsonValue GetPdfInfo(long storage, long file)
+		public JsonValue GetPdfInfo(string storage, long file)
 		{
 			JsonValue res = new JsonObject();
 			string fileMimetype;
@@ -243,7 +243,7 @@ namespace Erasme.Cloud.Pdf
 			return File.Exists(destPath);
 		}
 
-		bool BuildPdf(long storage, long file)
+		bool BuildPdf(string storage, long file)
 		{
 			// create needed directories
 			if(!Directory.Exists(basePath+"/"+storage))
@@ -448,10 +448,11 @@ namespace Erasme.Cloud.Pdf
 			long id3 = 0;
 
 			// GET /[storage]/[file] get PDF info 
-			if((context.Request.Method == "GET") && (parts.Length == 2) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2)) {
+			if((context.Request.Method == "GET") && (parts.Length == 2) && long.TryParse(parts[1], out id2)) {
+				string storage = parts[0];
 				context.Response.StatusCode = 200;
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
-				context.Response.Content = new JsonContent(GetPdfInfo(id, id2));
+				context.Response.Content = new JsonContent(GetPdfInfo(storage, id2));
 			}
 			// /[storage]/[file]/content[?attachement=1] get PDF file 
 			else if((context.Request.Method == "GET") && (parts.Length == 3) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2) && (parts[2] == "content")) {
@@ -499,9 +500,10 @@ namespace Erasme.Cloud.Pdf
 				return;*/
 			}
 			// get a page image /[storage]/[file]/pages/[page]/image
-			else if((context.Request.Method == "GET") && (parts.Length == 5) && long.TryParse(parts[0], out id) && long.TryParse(parts[1], out id2) && (parts[2] == "pages") && long.TryParse(parts[3], out id3) && (parts[4] == "image")) {
+			else if((context.Request.Method == "GET") && (parts.Length == 5) && long.TryParse(parts[1], out id2) && (parts[2] == "pages") && long.TryParse(parts[3], out id3) && (parts[4] == "image")) {
+				string storage = parts[0];
 				long rev = 0;
-				string etag = "\""+id+":"+id2+":"+rev+"\"";
+				string etag = "\""+storage+":"+id2+":"+rev+"\"";
 				if(!context.Request.QueryString.ContainsKey("nocache"))
 					context.Response.Headers["etag"] = etag;
 
@@ -521,7 +523,7 @@ namespace Erasme.Cloud.Pdf
 					if(argRev == rev)
 						context.Response.Headers["cache-control"] = "max-age="+cacheDuration;
 					context.Response.Headers["content-type"] = "image/jpeg";
-					context.Response.Content = new FileContent(basePath+"/"+id+"/"+id2+"/pages/"+id3);
+					context.Response.Content = new FileContent(basePath+"/"+storage+"/"+id2+"/pages/"+id3);
 				}
 			}
 		}
