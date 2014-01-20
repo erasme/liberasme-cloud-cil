@@ -42,13 +42,13 @@ namespace Erasme.Cloud.Message
 	{
 		class MessageClient: WebSocketHandler
 		{
-			public MessageClient(MessageService service, long user)
+			public MessageClient(MessageService service, string user)
 			{
 				Service = service;
 				User = user;								
 			}
 
-			public long User { get; private set; }
+			public string User { get; private set; }
 			
 			public MessageService Service { get; private set; }
 						
@@ -90,7 +90,7 @@ namespace Erasme.Cloud.Message
 		string basePath;
 
 		object instanceLock = new object();
-		Dictionary<long, WebSocketHandlerCollection<MessageClient>> clients = new Dictionary<long, WebSocketHandlerCollection<MessageClient>>();
+		Dictionary<string, WebSocketHandlerCollection<MessageClient>> clients = new Dictionary<string, WebSocketHandlerCollection<MessageClient>>();
 
 		IDbConnection dbcon;
 
@@ -101,22 +101,22 @@ namespace Erasme.Cloud.Message
 			if(!Directory.Exists(basepath))
 				Directory.CreateDirectory(basepath);
 
-			bool createNeeded = !File.Exists(basepath + "messages.db");
+			bool createNeeded = !File.Exists(basepath+"messages.db");
 
-			dbcon = (IDbConnection)new SqliteConnection("URI=file:" + this.basePath + "messages.db");
+			dbcon = (IDbConnection)new SqliteConnection("URI=file:"+this.basePath+"messages.db");
 			dbcon.Open();
 
 			if(createNeeded) {
 
 				// create the message table
-				using (IDbCommand dbcmd = dbcon.CreateCommand()) {
-					dbcmd.CommandText = "CREATE TABLE message (id INTEGER PRIMARY KEY AUTOINCREMENT, origin_id INTEGER, destination_id INTEGER, content VARCHAR, create_date INTEGER, seen_date INTEGER, type VARCHAR DEFAULT NULL)";
+				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
+					dbcmd.CommandText = "CREATE TABLE message (id INTEGER PRIMARY KEY AUTOINCREMENT, origin_id VARCHAR, destination_id VARCHAR, content VARCHAR DEFAULT NULL, create_date INTEGER, seen_date INTEGER, type VARCHAR DEFAULT NULL)";
 					dbcmd.ExecuteNonQuery();
 				}
 
 				// create connection log table
-				using (IDbCommand dbcmd = dbcon.CreateCommand()) {
-					dbcmd.CommandText = "CREATE TABLE log (id INTEGER PRIMARY KEY AUTOINCREMENT, user INTEGER, address INTEGER, port INTEGER, open INTEGER(1) DEFAULT 1, date INTEGER)";
+				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
+					dbcmd.CommandText = "CREATE TABLE log (id INTEGER PRIMARY KEY AUTOINCREMENT, user VARCHAR, address INTEGER, port INTEGER, open INTEGER(1) DEFAULT 1, date INTEGER)";
 					dbcmd.ExecuteNonQuery();
 				}
 			}
@@ -128,12 +128,16 @@ namespace Erasme.Cloud.Message
 			}
 		}
 
-		public void Log(long user, long address, long port, bool open)
+		public void Log(string user, long address, long port, bool open)
 		{
 			lock(dbcon) {
 				// create the log entry
 				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-					dbcmd.CommandText = "INSERT INTO log (user,address,port,open,date) VALUES ("+user+","+address+","+port+","+(open?"1":"0")+",datetime('now'))";
+					dbcmd.CommandText = "INSERT INTO log (user,address,port,open,date) VALUES (@user,@address,@port,@open,datetime('now'))";
+					dbcmd.Parameters.Add(new SqliteParameter("user", user));
+					dbcmd.Parameters.Add(new SqliteParameter("address", address));
+					dbcmd.Parameters.Add(new SqliteParameter("port", port));
+					dbcmd.Parameters.Add(new SqliteParameter("open", open?1:0));
 					dbcmd.ExecuteNonQuery();
 				}
 			}
@@ -194,7 +198,7 @@ namespace Erasme.Cloud.Message
 			}
 		}
 
-		public delegate void UserWatchedEventHandler(long user);
+		public delegate void UserWatchedEventHandler(string user);
 		List<UserWatchedEventHandler> userWatchedHandlers = new List<UserWatchedEventHandler>();
 		public event UserWatchedEventHandler UserWatched {
 			add {
@@ -208,7 +212,7 @@ namespace Erasme.Cloud.Message
 				}
 			}
 		}
-		internal void RaisesUserWatched(long user)
+		internal void RaisesUserWatched(string user)
 		{
 			List<UserWatchedEventHandler> handlers;
 			lock(userWatchedHandlers) {
@@ -236,7 +240,7 @@ namespace Erasme.Cloud.Message
 				}
 			}
 		}
-		internal void RaisesUserUnwatched(long user)
+		internal void RaisesUserUnwatched(string user)
 		{
 			List<UserWatchedEventHandler> handlers;
 			lock(userUnwatchedHandlers) {
@@ -256,19 +260,21 @@ namespace Erasme.Cloud.Message
 			lock(dbcon) {
 				// delete messages
 				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-					dbcmd.CommandText = "DELETE FROM message WHERE id = "+id;
+					dbcmd.CommandText = "DELETE FROM message WHERE id=@id";
+					dbcmd.Parameters.Add(new SqliteParameter("id", id));
 					done = (dbcmd.ExecuteNonQuery() == 1);
 				}
 			}
 			return done;
 		}
 
-		public void DeleteUserMessages(long user)
+		public void DeleteUserMessages(string user)
 		{
 			lock(dbcon) {
 				// delete messages
 				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-					dbcmd.CommandText = "DELETE FROM message WHERE origin_id = "+user+" OR destination_id = "+user;
+					dbcmd.CommandText = "DELETE FROM message WHERE origin_id=@user OR destination_id=@user";
+					dbcmd.Parameters.Add(new SqliteParameter("user", user));
 					dbcmd.ExecuteNonQuery();
 				}
 			}
@@ -297,9 +303,12 @@ namespace Erasme.Cloud.Message
 						return null;
 					message["id"] = reader.GetInt64(0);
 					message["type"] = reader.GetString(1);
-					message["origin"] = reader.GetInt64(2);
-					message["destination"] = reader.GetInt64(3);
-					message["content"] = reader.GetString(4);
+					message["origin"] = reader.GetString(2);
+					message["destination"] = reader.GetString(3);
+					if(reader.IsDBNull(4))
+						message["content"] = null;
+					else
+						message["content"] = JsonValue.Parse(reader.GetString(4));
 					message["create"] = Convert.ToInt64(reader.GetString(5));
 					if(reader.IsDBNull(6))
 						message["seen"] = -1;
@@ -318,20 +327,19 @@ namespace Erasme.Cloud.Message
 
 		public JsonValue SendMessage(JsonValue message)
 		{
-			long origin;
-			long destination;
+			string origin;
+			string destination;
 			JsonValue json;
 			if(message.ContainsKey("persist") && (message["persist"].Value is Boolean) && ((bool)message["persist"] == false)) {
 				json = new JsonObject();
 				string type = "message";
 				if(message.ContainsKey("type"))
 					type = (string)message["type"].Value;
-				origin = Convert.ToInt64(message["origin"].Value);
-				destination = Convert.ToInt64(message["destination"].Value);
-				string content = String.Empty;
+				origin = (string)message["origin"].Value;
+				destination = (string)message["destination"].Value;
+				string content = null;
 				if(message.ContainsKey("content"))
-					content = (string)message["content"].Value;
-
+					content = message["content"];
 				json["type"] = type;
 				json["origin"] = origin;
 				json["destination"] = destination;
@@ -346,8 +354,8 @@ namespace Erasme.Cloud.Message
 						transaction.Commit();
 					}
 				}
-				origin = (long)json["origin"];
-				destination = (long)json["destination"];
+				origin = (string)json["origin"];
+				destination = (string)json["destination"];
 			}
 			// signal the created message to the watched users
 			JsonValue messageJson = new JsonObject();
@@ -369,16 +377,22 @@ namespace Erasme.Cloud.Message
 			string type = "message";
 			if(message.ContainsKey("type"))
 				type = (string)message["type"];
-			long origin = Convert.ToInt64(message["origin"].Value);
-			long destination = Convert.ToInt64(message["destination"].Value);
-			string content = String.Empty;
+			string origin = (string)message["origin"].Value;
+			string destination = (string)message["destination"].Value;
+			string content = null;
 			if(message.ContainsKey("content"))
-				content = (string)message["content"].Value;
+				content = message["content"].ToString();
 
 			// insert into message table
 			using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 				dbcmd.Transaction = transaction;
-				dbcmd.CommandText = "INSERT INTO message (type,origin_id,destination_id,content,create_date) VALUES ('"+type.Replace("'","''")+"',"+origin+","+destination+",'"+content.Replace("'","''")+"',datetime('now'))";
+				dbcmd.CommandText = 
+					"INSERT INTO message (type,origin_id,destination_id,content,create_date) VALUES "+
+					"(@type,@origin,@destination,@content,datetime('now'))";
+				dbcmd.Parameters.Add(new SqliteParameter("type", type));
+				dbcmd.Parameters.Add(new SqliteParameter("origin", origin));
+				dbcmd.Parameters.Add(new SqliteParameter("destination", destination));
+				dbcmd.Parameters.Add(new SqliteParameter("content", content));
 				int count = dbcmd.ExecuteNonQuery();
 				if(count != 1)
 					throw new Exception("Create message fails");
@@ -394,28 +408,37 @@ namespace Erasme.Cloud.Message
 			return msgId;
 		}
 	
-		public JsonArray SearchMessages(long user, long? with, int limit)
+		public JsonArray SearchMessages(string user, string with, int limit)
 		{
 			limit = Math.Min(1000, Math.Max(0, limit));
 
 			string withFilter = "";
 			if(with != null)
-				withFilter = " AND (destination_id="+(long)with+" OR origin_id="+(long)with+") ";
+				withFilter = " AND (destination_id=@with OR origin_id=@with) ";
 
 			JsonArray messages = new JsonArray();
 
 			lock(dbcon) {
 				// select from the message table
 				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-					dbcmd.CommandText = "SELECT id,origin_id,destination_id,content,strftime('%s',create_date),strftime('%s',seen_date),type FROM message WHERE (destination_id="+user+" OR origin_id="+user+") "+withFilter+" ORDER BY id DESC LIMIT "+limit;
+					dbcmd.CommandText =
+						"SELECT id,origin_id,destination_id,content,strftime('%s',create_date),strftime('%s',seen_date),type "+
+						"FROM message WHERE (destination_id=@user OR origin_id=@user) "+withFilter+" ORDER BY id DESC LIMIT @limit";
+					dbcmd.Parameters.Add(new SqliteParameter("user", user));
+					dbcmd.Parameters.Add(new SqliteParameter("limit", limit));
+					dbcmd.Parameters.Add(new SqliteParameter("with", with));
+
 					using(IDataReader reader = dbcmd.ExecuteReader()) {
 						while(reader.Read()) {
 							JsonValue message = new JsonObject();
 							messages.Add(message);
 							message["id"] = reader.GetInt64(0);
-							message["origin"] = reader.GetInt64(1);
-							message["destination"] = reader.GetInt64(2);
-							message["content"] = reader.GetString(3);
+							message["origin"] = reader.GetString(1);
+							message["destination"] = reader.GetString(2);
+							if(reader.IsDBNull(3))
+								message["content"] = null;
+							else
+								message["content"] = JsonValue.Parse(reader.GetString(3));
 							message["create"] = Convert.ToInt64(reader.GetString(4));
 							if(reader.IsDBNull(5))
 								message["seen"] = -1;
@@ -443,7 +466,8 @@ namespace Erasme.Cloud.Message
 
 					// insert into message table
 					using (IDbCommand dbcmd = dbcon.CreateCommand()) {
-						dbcmd.CommandText = "UPDATE message SET seen_date=DATETIME('now') WHERE id=" + id;
+						dbcmd.CommandText = "UPDATE message SET seen_date=DATETIME('now') WHERE id=@id";
+						dbcmd.Parameters.Add(new SqliteParameter("id", id));
 						dbcmd.Transaction = transaction;
 						dbcmd.ExecuteNonQuery();
 					}
@@ -453,8 +477,8 @@ namespace Erasme.Cloud.Message
 			}
 			if(json != null) {
 				// signal the changed message to the watched users
-				long origin = (long)json["origin"];
-				long destination = (long)json["destination"];
+				string origin = (string)json["origin"];
+				string destination = (string)json["destination"];
 				JsonValue messageJson = new JsonObject();
 				messageJson["event"] = "messagechanged";
 				messageJson["message"] = json;
@@ -470,7 +494,7 @@ namespace Erasme.Cloud.Message
 			return json;
 		}
 
-		public bool GetIsUserWatched(long user)
+		public bool GetIsUserWatched(string user)
 		{
 			bool res;
 			lock(instanceLock) {
@@ -485,8 +509,9 @@ namespace Erasme.Cloud.Message
 			long id = 0;
 
 			// WS /[id] monitor a user messages
-			if((context.Request.IsWebSocketRequest) && (parts.Length == 1) && (long.TryParse(parts[0], out id))) {
-				MessageClient client = new MessageClient(this, id);
+			if((context.Request.IsWebSocketRequest) && (parts.Length == 1)) {
+				string user = parts[0];
+				MessageClient client = new MessageClient(this, user);
 				await context.AcceptWebSocketRequestAsync(client);
 				//
 			}
@@ -504,10 +529,10 @@ namespace Erasme.Cloud.Message
 			}
 			// GET /?user=[user_id]&with=[user_id]&limit=[limit]
 			else if((context.Request.Method == "GET") && (context.Request.Path == "/") && context.Request.QueryString.ContainsKey("user")) {
-				long user = Convert.ToInt64(context.Request.QueryString["user"]);
-				long? with = null;
+				string user = context.Request.QueryString["user"];
+				string with = null;
 				if(context.Request.QueryString.ContainsKey("with"))
-					with = Convert.ToInt64(context.Request.QueryString["with"]);
+					with = context.Request.QueryString["with"];
 				int limit = 1000;
 				if(context.Request.QueryString.ContainsKey("limit"))
 					limit = Convert.ToInt32(context.Request.QueryString["limit"]);
@@ -521,9 +546,9 @@ namespace Erasme.Cloud.Message
 				JsonValue json = context.Request.ReadAsJson();
 
 				if(context.Request.QueryString.ContainsKey("destination"))
-					json["destination"] = Convert.ToInt64(context.Request.QueryString["destination"]);
+					json["destination"] = context.Request.QueryString["destination"];
 				if(context.Request.QueryString.ContainsKey("origin"))
-					json["origin"] = Convert.ToInt64(context.Request.QueryString["origin"]);
+					json["origin"] = context.Request.QueryString["origin"];
 				if(!json.ContainsKey("type"))
 					json["type"] = "message";
 
