@@ -348,6 +348,7 @@ namespace Erasme.Cloud.Preview
 				GetPreview(storage, file, out previewMimetype, out previewPath, out rev, out fails);
 				if(fails) {
 					context.Response.StatusCode = 404;
+					context.Response.Headers["cache-control"] = "max-age="+cacheDuration;
 					context.Response.Content = new StringContent("File not found\n");
 				}
 				else {
@@ -355,20 +356,15 @@ namespace Erasme.Cloud.Preview
 					if(context.Request.QueryString.ContainsKey("rev"))
 						argRev = Convert.ToInt64(context.Request.QueryString["rev"]);
 
-					string etag = "\""+storage+":"+file+":"+rev+"\"";
-					context.Response.Headers["etag"] = etag;
-					context.Response.Headers["content-type"] = previewMimetype;
-					context.Response.SupportRanges = true;
-
-					if(context.Request.Headers.ContainsKey("if-none-match") && (context.Request.Headers["if-none-match"] == etag)) {
-						context.Response.StatusCode = 304;
-						if(argRev == rev)
-							context.Response.Headers["cache-control"] = "max-age="+cacheDuration;
+					if(argRev != rev) {
+						context.Response.StatusCode = 307;
+						context.Response.Headers["location"] = "content?rev="+rev;
 					}
 					else {
+						context.Response.Headers["content-type"] = previewMimetype;
+						context.Response.SupportRanges = true;
 						context.Response.StatusCode = 200;
-						if(argRev == rev)
-							context.Response.Headers["cache-control"] = "max-age="+cacheDuration;
+						context.Response.Headers["cache-control"] = "max-age="+cacheDuration;
 						context.Response.Content = new FileContent(previewPath);
 					}
 				}

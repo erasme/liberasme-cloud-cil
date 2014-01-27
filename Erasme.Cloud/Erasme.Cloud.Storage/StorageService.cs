@@ -1746,32 +1746,26 @@ namespace Erasme.Cloud.Storage
 				string mimetype;
 				long rev;
 				GetDownloadFileInfo(storage, file, out mimetype, out filename, out rev);
-				
-				if(context.Request.QueryString.ContainsKey("attachment"))
-					context.Response.Headers["content-disposition"] = "attachment; filename=\""+filename+"\"";
-				context.Response.Headers["content-type"] = mimetype;
-				string etag = "\""+storage+":"+file+":"+rev+"\"";
-				if(!context.Request.QueryString.ContainsKey("nocache"))
-					context.Response.Headers["etag"] = etag;
 
 				long argRev = -1;
 				if(context.Request.QueryString.ContainsKey("rev"))
 					argRev = Convert.ToInt64(context.Request.QueryString["rev"]);
-					
-				if(!context.Request.QueryString.ContainsKey("nocache") &&
-				   context.Request.Headers.ContainsKey("if-none-match") &&
-				   (context.Request.Headers["if-none-match"] == etag)) {
 
-					context.Response.StatusCode = 304;
-					if(argRev == rev)
-						context.Response.Headers["cache-control"] = "max-age="+cacheDuration;
+				// redirect to the URL with the correct rev
+				if(argRev != rev) {
+					context.Response.StatusCode = 307;
+					context.Response.Headers["location"] = "content?rev=" + rev;
 				}
 				else {
+					if(context.Request.QueryString.ContainsKey("attachment"))
+						context.Response.Headers["content-disposition"] = "attachment; filename=\"" + filename + "\"";
+					context.Response.Headers["content-type"] = mimetype;
+
 					context.Response.StatusCode = 200;
-					if(argRev == rev)
-						context.Response.Headers["cache-control"] = "max-age="+cacheDuration;
+					if(!context.Request.QueryString.ContainsKey("nocache"))
+						context.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
 					context.Response.SupportRanges = true;
-					context.Response.Content = new FileContent(basePath+"/"+storage+"/"+file);
+					context.Response.Content = new FileContent(basePath + "/" + storage + "/" + file);
 				}
 			}
 			// DELETE /[storage]/[file] delete a file

@@ -1,3 +1,10 @@
+liberasme-cloud-cil (1.0.3) saucy; urgency=low (NOT YET RELEASED)
+
+  * Remove ETag in storage, only use cache
+
+ -- Daniel Lacroix <dlacroix@erasme.org>  Mon, 20 Jan 2014 14:48:00 +0100
+
+
 liberasme-cloud-cil (1.0.2) saucy; urgency=low
 
   * Change storage id from integer to string
