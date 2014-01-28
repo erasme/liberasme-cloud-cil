@@ -39,7 +39,10 @@ namespace Erasme.Cloud.Manage
 	{
 		public ManageService()
 		{
+			Rights = new DummyManageRights();
 		}
+
+		public IManageRights Rights { get; set; }
 
 		bool CheckFilters(JsonObject json, Dictionary<string, string> filters)
 		{
@@ -106,6 +109,8 @@ namespace Erasme.Cloud.Manage
 			string[] parts = context.Request.Path.Split(new char[] { '/' }, System.StringSplitOptions.RemoveEmptyEntries);
 
 			if((context.Request.Method == "GET") && (parts.Length == 0)) {
+				Rights.EnsureCanReadClients(context);
+
 				context.Response.StatusCode = 200;
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				JsonValue json = new JsonObject();
@@ -116,12 +121,16 @@ namespace Erasme.Cloud.Manage
 			}
 			// GET /clients get all connected HTTP clients
 			else if((context.Request.Method == "GET") && (context.Request.Path == "/clients")) {
+				Rights.EnsureCanReadClients(context);
+
 				context.Response.StatusCode = 200;
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				context.Response.Content = new JsonContent(GetClients(context));
 			}
 			// DELETE /clients/[address or user] close a client connection
 			else if((context.Request.Method == "DELETE") && (parts.Length == 2) && (parts[0] == "clients")) {
+				Rights.EnsureCanDeleteClients(context);
+
 				CloseClient(context, parts[1]);
 			}
 			return Task.FromResult<Object>(null);

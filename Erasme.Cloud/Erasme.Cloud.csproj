@@ -70,6 +70,7 @@
     <Compile Include="Erasme.Cloud.Logger\ConsoleLogger.cs" />
     <Compile Include="Erasme.Cloud.Utils\LimitedConcurrencyTaskScheduler.cs" />
     <Compile Include="Erasme.Cloud.Message\IMessageRights.cs" />
+    <Compile Include="Erasme.Cloud.Manage\IManageRights.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
