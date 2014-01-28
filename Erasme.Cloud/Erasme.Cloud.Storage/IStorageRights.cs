@@ -55,7 +55,7 @@ namespace Erasme.Cloud.Storage
 
 		void EnsureCanUpdateComment(HttpContext context, string storage, long file, long comment);
 
-		void EnsureCanDeleteComment(HttpContext context, string storage, long file, long comment);
+		void EnsureCanDeleteComment(HttpContext context, string storage, long file, long comment, string owner);
 	}
 
 	public class DummyStorageRights: IStorageRights
@@ -100,7 +100,7 @@ namespace Erasme.Cloud.Storage
 		{
 		}
 
-		public void EnsureCanDeleteComment(HttpContext context, string storage, long file, long comment)
+		public void EnsureCanDeleteComment(HttpContext context, string storage, long file, long comment, string owner)
 		{
 		}
 	}

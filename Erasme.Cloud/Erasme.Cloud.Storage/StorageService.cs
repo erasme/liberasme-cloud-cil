@@ -1424,7 +1424,45 @@ namespace Erasme.Cloud.Storage
 		{
 			return basePath+"/"+storage+"/"+file;
 		}
-		
+
+		public JsonValue GetComment(string storage, long file, long comment)
+		{
+			JsonValue res;
+			lock(dbcon) {
+				using(IDbTransaction transaction = dbcon.BeginTransaction()) {
+					res = GetComment(dbcon, transaction, storage, file, comment);
+					// commit the transaction
+					transaction.Commit();
+				}
+			}
+			return res;
+		}
+
+		JsonValue GetComment(IDbConnection dbcon, IDbTransaction transaction, string storage, long file, long comment)
+		{
+			JsonValue res = null;
+			// select comment
+			using(IDbCommand dbcmd = dbcon.CreateCommand()) {
+				dbcmd.Transaction = transaction;
+				dbcmd.CommandText = "SELECT id,user_id,content,strftime('%s',ctime),strftime('%s',mtime) FROM comment WHERE file_id=@file AND comment=@comment";
+				dbcmd.Parameters.Add(new SqliteParameter("file", file));
+				dbcmd.Parameters.Add(new SqliteParameter("comment", comment));
+				using(IDataReader reader = dbcmd.ExecuteReader()) {
+					while(reader.Read()) {
+						res = new JsonObject();
+						res["id"] = reader.GetInt64(0);
+						res["user"] = reader.GetString(1);
+						res["content"] = reader.GetString(2);
+						res["ctime"] = Convert.ToInt64(reader.GetString(3));
+						if(!reader.IsDBNull(4))
+							res["mtime"] = Convert.ToInt64(reader.GetString(4));
+					}
+					reader.Close();
+				}
+			}
+			return res;
+		}
+
 		public JsonValue GetFileInfo(string storage, long file, int depth)
 		{
 			JsonValue res = new JsonObject();
@@ -1851,7 +1889,9 @@ namespace Erasme.Cloud.Storage
 			// DELETE /[storage]/[file]/comments/[comment] delete a comment
 			else if((context.Request.Method == "DELETE") && (parts.Length == 4) && long.TryParse(parts[1], out id2) && (parts[2] == "comments") && long.TryParse(parts[3], out id3)) {
 				string storage = parts[0];
-				Rights.EnsureCanDeleteComment(context, storage, id2, id3);
+
+				JsonValue json = GetComment(storage, id2, id3);
+				Rights.EnsureCanDeleteComment(context, storage, id2, id3, (string)json["user"]);
 
 				DeleteComment(storage, id2, id3, true);
 
