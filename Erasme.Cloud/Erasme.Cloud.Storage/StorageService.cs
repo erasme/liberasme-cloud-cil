@@ -5,7 +5,7 @@
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
-// Copyright (c) 2012-2013 Departement du Rhone
+// Copyright (c) 2012-2014 Departement du Rhone
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -1444,7 +1444,7 @@ namespace Erasme.Cloud.Storage
 			// select comment
 			using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 				dbcmd.Transaction = transaction;
-				dbcmd.CommandText = "SELECT id,user_id,content,strftime('%s',ctime),strftime('%s',mtime) FROM comment WHERE file_id=@file AND comment=@comment";
+				dbcmd.CommandText = "SELECT id,user_id,content,strftime('%s',ctime),strftime('%s',mtime) FROM comment WHERE file_id=@file AND id=@comment";
 				dbcmd.Parameters.Add(new SqliteParameter("file", file));
 				dbcmd.Parameters.Add(new SqliteParameter("comment", comment));
 				using(IDataReader reader = dbcmd.ExecuteReader()) {
@@ -1891,6 +1891,7 @@ namespace Erasme.Cloud.Storage
 				string storage = parts[0];
 
 				JsonValue json = GetComment(storage, id2, id3);
+
 				Rights.EnsureCanDeleteComment(context, storage, id2, id3, (string)json["user"]);
 
 				DeleteComment(storage, id2, id3, true);
