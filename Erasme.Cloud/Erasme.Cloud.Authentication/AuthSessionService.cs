@@ -5,7 +5,7 @@
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
-// Copyright (c) 2011-2013 Departement du Rhone
+// Copyright (c) 2011-2014 Departement du Rhone
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -75,7 +75,11 @@ namespace Erasme.Cloud.Authentication
 				dbcmd.CommandText = "PRAGMA synchronous=0";
 				dbcmd.ExecuteNonQuery();
 			}
+
+			Rights = new DummyAuthSessionRights();
 		}
+
+		public IAuthSessionRights Rights { get; set; }
 
 		void CleanSessions()
 		{
@@ -116,7 +120,8 @@ namespace Erasme.Cloud.Authentication
 			// get the session
 			using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 				dbcmd.Transaction = transaction;
-				dbcmd.CommandText = "SELECT user,(julianday(datetime('now'))-julianday(last))*24*3600 FROM session WHERE id='" + session + "'";
+				dbcmd.CommandText = "SELECT user,(julianday(datetime('now'))-julianday(last))*24*3600 FROM session WHERE id=@id";
+				dbcmd.Parameters.Add(new SqliteParameter("id", session));
 				using(IDataReader reader = dbcmd.ExecuteReader()) {
 					if(!reader.Read())
 						return null;
@@ -133,7 +138,8 @@ namespace Erasme.Cloud.Authentication
 				// update the last time seen
 				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 					dbcmd.Transaction = transaction;
-					dbcmd.CommandText = "UPDATE session SET last=DATETIME('now') WHERE id='"+session+"'";
+					dbcmd.CommandText = "UPDATE session SET last=DATETIME('now') WHERE id=@id";
+					dbcmd.Parameters.Add(new SqliteParameter("id", session));
 					dbcmd.ExecuteNonQuery();
 				}
 			}
@@ -192,7 +198,8 @@ namespace Erasme.Cloud.Authentication
 			lock(instanceLock) {
 				// delete old sessions
 				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-					dbcmd.CommandText = "DELETE FROM session WHERE id='" + session + "'";
+					dbcmd.CommandText = "DELETE FROM session WHERE id=@id";
+					dbcmd.Parameters.Add(new SqliteParameter("id", session));
 					dbcmd.ExecuteNonQuery();
 				}
 			}
@@ -237,6 +244,9 @@ namespace Erasme.Cloud.Authentication
 				JsonValue json = context.Request.ReadAsJson();
 
 				string user = json["user"];
+
+				Rights.EnsureCanCreateSession(context, user);
+
 				bool permanent = false;
 				if(json.ContainsKey("permanent"))
 					permanent = json["permanent"];
@@ -247,6 +257,9 @@ namespace Erasme.Cloud.Authentication
 			}
 			// GET /?permanent=[true|false]&limit=100 search for sessions
 			else if((context.Request.Method == "GET") && (parts.Length == 0)) {
+
+				Rights.EnsureCanSearchSessions(context);
+
 				bool? permanent = null;
 				if(context.Request.QueryString.ContainsKey("permanent"))
 					permanent = (context.Request.QueryString["permanent"].ToLower() == "true");
@@ -278,6 +291,8 @@ namespace Erasme.Cloud.Authentication
 						context.Response.Content = new StringContent("Session '"+sessionId+"' not found or expired");
 					}
 					else {
+						Rights.EnsureCanReadSession(context, sessionId, session["user"]);
+
 						if(context.Request.QueryString.ContainsKey("setcookie"))
 							context.Response.Headers["set-cookie"] = cookieKey+"="+sessionId+"; Path=/";
 						context.Response.StatusCode = 200;
@@ -294,6 +309,8 @@ namespace Erasme.Cloud.Authentication
 					context.Response.StatusCode = 404;
 				}
 				else {
+					Rights.EnsureCanReadSession(context, sessionId, session["user"]);
+
 					if(context.Request.QueryString.ContainsKey("setcookie"))
 						context.Response.Headers["set-cookie"] = cookieKey+"="+sessionId+"; Path=/";
 					context.Response.StatusCode = 200;
@@ -313,6 +330,9 @@ namespace Erasme.Cloud.Authentication
 					context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				}
 				else {
+					JsonValue session = Get(sessionId);
+					Rights.EnsureCanDeleteSession(context, sessionId, session["user"]);
+
 					Delete(sessionId);
 					context.Response.StatusCode = 200;
 					context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
@@ -322,6 +342,10 @@ namespace Erasme.Cloud.Authentication
 			}
 			// DELETE /[session] delete a session
 			else if((context.Request.Method == "DELETE") && (parts.Length == 1)) {
+
+				JsonValue session = Get(parts[0]);
+				Rights.EnsureCanDeleteSession(context, parts[0], session["user"]);
+
 				Delete(parts[0]);
 				context.Response.StatusCode = 200;
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
