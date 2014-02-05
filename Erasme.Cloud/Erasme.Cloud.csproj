@@ -75,6 +75,7 @@
     <Compile Include="Erasme.Cloud.Compatibility\IECompatibilityPlugin.cs" />
     <Compile Include="Erasme.Cloud.Compatibility\SafariETagPlugin.cs" />
     <Compile Include="Erasme.Cloud.Compatibility\SafariKeepAlivePlugin.cs" />
+    <Compile Include="Erasme.Cloud.Storage\IStoragePlugin.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>

@@ -44,6 +44,7 @@ namespace Erasme.Cloud.Storage
 	{
 		object instanceLock = new object();
 		Dictionary<string,WebSocketHandlerCollection<MonitorClient>> clients = new Dictionary<string,WebSocketHandlerCollection<MonitorClient>>();
+		Dictionary<string,List<IStoragePlugin>> mimePlugins = new Dictionary<string,List<IStoragePlugin>>();
 
 		class MonitorClient: WebSocketHandler
 		{
@@ -107,6 +108,76 @@ namespace Erasme.Cloud.Storage
 			}
 		}
 
+		public class StorageFile
+		{
+			StorageService service;
+			IDbConnection dbcon;
+			IDbTransaction transaction;
+			string storage;
+			JsonValue data;
+			Dictionary<string,string> cache = null;
+
+			internal StorageFile(StorageService service, IDbConnection dbcon, IDbTransaction transaction, string storage, JsonValue data)
+			{
+				this.service = service;
+				this.dbcon = dbcon;
+				this.transaction = transaction;
+				this.storage = storage;
+				this.data = data;
+			}
+
+			public JsonValue Data {
+				get {
+					return data;
+				}
+			}
+
+			public string GetCacheString(string key)
+			{
+				if((cache != null) && (cache.ContainsKey(key)))
+					return cache[key];
+				else if(this.data["cache"].ContainsKey(key))
+					return this.data["cache"][key];
+				else
+					return null;
+			}
+
+			public void SetCacheString(string key, string value)
+			{
+				if(cache == null)
+					cache = new Dictionary<string,string>();
+				cache[key] = value;
+			}
+
+			internal void UpdateCache()
+			{
+				if(cache != null) {
+					foreach(string key in cache.Keys) {
+						string value = (string)cache[key];
+						if(value == null) {
+							using(IDbCommand dbcmd = dbcon.CreateCommand()) {
+								dbcmd.Transaction = transaction;
+								dbcmd.CommandText = "DELETE FROM cache  WHERE owner_id=@file AND key=@key";
+								dbcmd.Parameters.Add(new SqliteParameter("file", (long)data["id"]));
+								dbcmd.Parameters.Add(new SqliteParameter("key", key));
+								dbcmd.ExecuteNonQuery();
+							}
+						}
+						else {
+							using(IDbCommand dbcmd = dbcon.CreateCommand()) {
+								dbcmd.Transaction = transaction;
+								dbcmd.CommandText = "REPLACE INTO cache (owner_id,key,value) VALUES (@file,@key,@value)";
+								dbcmd.Parameters.Add(new SqliteParameter("file", (long)data["id"]));
+								dbcmd.Parameters.Add(new SqliteParameter("key", key));
+								dbcmd.Parameters.Add(new SqliteParameter("value", value));
+								dbcmd.ExecuteNonQuery();
+							}
+						}
+					}
+				}
+			}
+		}
+
 		string basePath;
 		string temporaryDirectory;
 		int cacheDuration;
@@ -148,6 +219,12 @@ namespace Erasme.Cloud.Storage
 					dbcmd.ExecuteNonQuery();
 				}
 
+				// create the cache table (description fields attached to files)
+				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
+					dbcmd.CommandText = "CREATE TABLE cache (owner_id INTEGER, key VARCHAR, value VARCHAR)";
+					dbcmd.ExecuteNonQuery();
+				}
+
 				// create the comment table (user comments attached to files)
 				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
 					dbcmd.CommandText = "CREATE TABLE comment "+
@@ -165,6 +242,20 @@ namespace Erasme.Cloud.Storage
 		}
 
 		public IStorageRights Rights { get; set; }
+
+		public void AddPlugin(IStoragePlugin plugin)
+		{
+			foreach(string mimetype in plugin.MimeTypes) {
+				List<IStoragePlugin> plugins;
+				if(mimePlugins.ContainsKey(mimetype))
+					plugins = mimePlugins[mimetype];
+				else {
+					plugins = new List<IStoragePlugin>();
+					mimePlugins[mimetype] = plugins;
+				}
+				plugins.Add(plugin);
+			}
+		}
 
 		void MonitorClientSignalChanged(string storage, long rev)
 		{
@@ -276,7 +367,8 @@ namespace Erasme.Cloud.Storage
 					// create the corresponding directory
 					// to store files
 					Directory.CreateDirectory(basePath+"/"+id);
-				
+					Directory.CreateDirectory(basePath+"/"+id+"/cache");
+
 					// commit the transaction
 					transaction.Commit();
 				}
@@ -1472,8 +1564,22 @@ namespace Erasme.Cloud.Storage
 					GetStorageInfo(dbcon, transaction, storage, out quota, out used, out ctime, out mtime, out storageRev);
 
 					res = GetFileInfo(dbcon, transaction, storage, file, depth);
-					if(res != null)
+					if(res != null) {
 						res["storage_rev"] = storageRev;
+
+						//StorageFile storageFile = new StorageFile(this, dbcon, transaction, storage, res);
+
+						// handle plugins
+						//if(mimePlugins.ContainsKey("*/*")) {
+						//	foreach(IStoragePlugin plugin in mimePlugins["*/*"])
+						//		plugin.GetFile(storageFile);
+						//}
+						//if(mimePlugins.ContainsKey(res["mimetype"])) {
+						//	foreach(IStoragePlugin plugin in mimePlugins[res["mimetype"]])
+						//		plugin.GetFile(storageFile);
+						//}
+						//storageFile.UpdateCache();
+					}
 					// commit the transaction
 					transaction.Commit();
 				}
@@ -1575,7 +1681,21 @@ namespace Erasme.Cloud.Storage
 					reader.Close();
 				}
 			}
-			
+
+			// select cache
+			using(IDbCommand dbcmd = dbcon.CreateCommand()) {
+				dbcmd.Transaction = transaction;
+				dbcmd.CommandText = "SELECT key,value FROM cache WHERE owner_id=@file";
+				dbcmd.Parameters.Add(new SqliteParameter("file", file));
+				using(IDataReader reader = dbcmd.ExecuteReader()) {
+					JsonValue cache = new JsonObject();
+					res["cache"] = cache;
+					while(reader.Read())
+						cache[reader.GetString(0)] = reader.GetString(1);
+					reader.Close();
+				}
+			}
+
 			// select subchildren
 			if(depth > 0) {
 				// clean the childs positions if needed
