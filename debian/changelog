@@ -1,9 +1,9 @@
-liberasme-cloud-cil (1.0.4) saucy; urgency=low (NOT YET RELEASED)
+liberasme-cloud-cil (1.0.4) saucy; urgency=low
 
   * Correct a bug on Storage GetComment
   * Add rights management to AuthSessionService
 
- -- Daniel Lacroix <dlacroix@erasme.org>  Wed, 29 Jan 2014 17:15:00 +0100
+ -- Daniel Lacroix <dlacroix@erasme.org>  Wed,  5 Feb 2014 12:07:00 +0100
 
 liberasme-cloud-cil (1.0.3) saucy; urgency=low
 
