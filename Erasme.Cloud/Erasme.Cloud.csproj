@@ -68,7 +68,6 @@
     <Compile Include="Erasme.Cloud.Logger\ILogger.cs" />
     <Compile Include="Erasme.Cloud.Logger\LoggerList.cs" />
     <Compile Include="Erasme.Cloud.Logger\ConsoleLogger.cs" />
-    <Compile Include="Erasme.Cloud.Utils\LimitedConcurrencyTaskScheduler.cs" />
     <Compile Include="Erasme.Cloud.Message\IMessageRights.cs" />
     <Compile Include="Erasme.Cloud.Manage\IManageRights.cs" />
     <Compile Include="Erasme.Cloud.Authentication\IAuthSessionRights.cs" />
@@ -76,6 +75,8 @@
     <Compile Include="Erasme.Cloud.Compatibility\SafariETagPlugin.cs" />
     <Compile Include="Erasme.Cloud.Compatibility\SafariKeepAlivePlugin.cs" />
     <Compile Include="Erasme.Cloud.Storage\IStoragePlugin.cs" />
+    <Compile Include="Erasme.Cloud.Utils\LongTask.cs" />
+    <Compile Include="Erasme.Cloud.Utils\PriorityTaskScheduler.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
@@ -102,5 +103,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Erasme.Cloud.snk" />
+    <None Include="Erasme.Cloud.Utils\PriorityTaskScheduler.cs.sav">
+      <Visible>False</Visible>
+    </None>
   </ItemGroup>
 </Project>

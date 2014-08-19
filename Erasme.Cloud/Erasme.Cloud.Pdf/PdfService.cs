@@ -5,7 +5,7 @@
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
-// Copyright (c) 2012-2013 Departement du Rhone
+// Copyright (c) 2012-2014 Departement du Rhone
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -40,6 +40,7 @@ using Erasme.Http;
 using Erasme.Json;
 using Erasme.Cloud;
 using Erasme.Cloud.Storage;
+using Erasme.Cloud.Utils;
 
 namespace Erasme.Cloud.Pdf
 {
@@ -80,17 +81,18 @@ namespace Erasme.Cloud.Pdf
 		string basePath;
 		string temporaryDirectory;
 		int cacheDuration;
-		TaskFactory longRunningTaskFactory;
+		PriorityTaskScheduler longRunningTaskScheduler;
 
 		object instanceLock = new object();
-		Dictionary<string,Task> runningTasks = new Dictionary<string, Task>();
+		Dictionary<string, LongTask> runningTasks = new Dictionary<string, LongTask>();
 				
-		public PdfService(string basepath, StorageService storage, string temporaryDirectory, int cacheDuration, TaskFactory longRunningTaskFactory)
+		public PdfService(string basepath, StorageService storage, string temporaryDirectory,
+			int cacheDuration, PriorityTaskScheduler longRunningTaskScheduler)
 		{
 			basePath = basepath;
 			this.temporaryDirectory = temporaryDirectory;
 			this.cacheDuration = cacheDuration;
-			this.longRunningTaskFactory = longRunningTaskFactory;
+			this.longRunningTaskScheduler = longRunningTaskScheduler;
 
 			if(!Directory.Exists(basepath))
 				Directory.CreateDirectory(basepath);
@@ -158,7 +160,7 @@ namespace Erasme.Cloud.Pdf
 		{
 			lock(instanceLock) {
 				if(!runningTasks.ContainsKey(storage+":"+file)) {
-					Task task = longRunningTaskFactory.StartNew(delegate {
+					LongTask task = new LongTask(delegate {
 						try {
 							PdfGenerate(storage, file);
 						} finally {
@@ -168,7 +170,8 @@ namespace Erasme.Cloud.Pdf
 									runningTasks.Remove(storage+":"+file);
 							}
 						}
-					});
+					}, null, "Build PDF "+storage+":"+file);
+					longRunningTaskScheduler.Start(task);
 					runningTasks[storage+":"+file] = task;
 				}
 			}

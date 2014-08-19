@@ -5,7 +5,7 @@
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
-// Copyright (c) 2012-2013 Departement du Rhone
+// Copyright (c) 2012-2014 Departement du Rhone
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -341,6 +341,8 @@ namespace Erasme.Cloud.Preview
 				// get the file
 				string storage = parts[0];
 
+				Storage.Rights.EnsureCanReadFile(context, storage);
+			
 				string previewMimetype;
 				string previewPath;
 				long rev;

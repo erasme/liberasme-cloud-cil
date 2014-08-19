@@ -37,6 +37,7 @@ using Erasme.Http;
 using Erasme.Json;
 using Erasme.Cloud;
 using Erasme.Cloud.Storage;
+using Erasme.Cloud.Utils;
 
 namespace Erasme.Cloud.Video
 {
@@ -46,17 +47,18 @@ namespace Erasme.Cloud.Video
 		string basePath;
 		string temporaryDirectory;
 		int cacheDuration;
-		TaskFactory longRunningTaskFactory;
+		PriorityTaskScheduler longRunningTaskScheduler;
 		object instanceLock = new object();
-		Dictionary<string,Task> runningTasks = new Dictionary<string, Task>();
+		Dictionary<string,LongTask> runningTasks = new Dictionary<string, LongTask>();
 		
-		public VideoService(string basepath, StorageService storage, string temporaryDirectory, int cacheDuration, TaskFactory longRunningTaskFactory)
+		public VideoService(string basepath, StorageService storage, string temporaryDirectory,
+			int cacheDuration, PriorityTaskScheduler longRunningTaskScheduler)
 		{
 			basePath = basepath;
 			Storage = storage;
 			this.temporaryDirectory = temporaryDirectory;
 			this.cacheDuration = cacheDuration;
-			this.longRunningTaskFactory = longRunningTaskFactory;
+			this.longRunningTaskScheduler = longRunningTaskScheduler;
 			Storage.FileCreated += OnFileCreated;
 			Storage.FileChanged += OnFileChanged;
 			Storage.FileDeleted += OnFileDeleted;
@@ -91,6 +93,7 @@ namespace Erasme.Cloud.Video
 
 		void BuildMp4(string storage, long file)
 		{
+			//Console.WriteLine("BuildMp4(" + storage + "," + file + ")");
 			string mimetype;
 			string filename;
 			string filepath;
@@ -135,23 +138,22 @@ namespace Erasme.Cloud.Video
 				// 720p
 				if(height >= 720) {
 					resizedHeight = 720;
-					args.Add("-b"); args.Add("2560k");
+					args.Add("-b:v"); args.Add("2560k");
 				}
 				// 480p
 				else if(height >= 480) {
 					resizedHeight = 480;
-					args.Add("-b"); args.Add("1280k");
+					args.Add("-b:v"); args.Add("1280k");
 				}
 				// 240p
 				else {
 					resizedHeight = 240;
-					args.Add("-b"); args.Add("640k");
+					args.Add("-b:v"); args.Add("640k");
 				}
 				int resizedWidth = (int)(Math.Ceiling((((double)resizedHeight)*(width/height))/16)*16);
 				args.Add("-s"); args.Add(resizedWidth+"x"+resizedHeight);
 
 				args.Add(videoFile);
-
 				ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/ffmpegstatic", BuildArguments(args));
 
 				using(Process process = new Process()) {
@@ -170,12 +172,13 @@ namespace Erasme.Cloud.Video
 				// if original file was removed in the mean time, trash the MP4
 				if(!File.Exists(filepath))
 					File.Delete(basePath+"/"+storage+"/mp4/"+file);
-
+				//} catch(Exception e) {
+				//Console.WriteLine(e.ToString());
 			} finally {
 				// remove the task
 				lock(instanceLock) {
-					if(runningTasks.ContainsKey(storage+":"+file+":mp4"))
-						runningTasks.Remove(storage+":"+file+":mp4");
+					if(runningTasks.ContainsKey(storage+":"+file.ToString()+":mp4"))
+						runningTasks.Remove(storage+":"+file.ToString()+":mp4");
 				}
 			}
 		}
@@ -225,17 +228,17 @@ namespace Erasme.Cloud.Video
 				// 720p
 				if(height >= 720) {
 					resizedHeight = 720;
-					args.Add("-b"); args.Add("2560k");
+					args.Add("-b:v"); args.Add("2560k");
 				}
 				// 480p
 				else if(height >= 480) {
 					resizedHeight = 480;
-					args.Add("-b"); args.Add("1280k");
+					args.Add("-b:v"); args.Add("1280k");
 				}
 				// 240p
 				else {
 					resizedHeight = 240;
-					args.Add("-b"); args.Add("640k");
+					args.Add("-b:v"); args.Add("640k");
 				}
 				int resizedWidth = (int)(Math.Ceiling((((double)resizedHeight)*(width/height))/16)*16);
 				args.Add("-s"); args.Add(resizedWidth+"x"+resizedHeight);
@@ -260,12 +263,11 @@ namespace Erasme.Cloud.Video
 				// if original file was removed in the mean time, trash the WEBM
 				if(!File.Exists(filepath))
 					File.Delete(basePath+"/"+storage+"/webm/"+file);
-
 			} finally {
 				// remove the task
 				lock(instanceLock) {
-					if(runningTasks.ContainsKey(storage+":"+file+":webm"))
-						runningTasks.Remove(storage+":"+file+":webm");
+					if(runningTasks.ContainsKey(storage+":"+file.ToString()+":webm"))
+						runningTasks.Remove(storage+":"+file.ToString()+":webm");
 				}
 			}
 		}
@@ -281,12 +283,18 @@ namespace Erasme.Cloud.Video
 				lock(instanceLock) {
 					if(!runningTasks.ContainsKey(storage+":"+file+":mp4") &&
 					   !File.Exists(basePath+"/"+storage+"/mp4/"+file)) {
-						Task task = longRunningTaskFactory.StartNew(delegate { BuildMp4(storage, file); });
+						LongTask task = new LongTask(delegate {
+							BuildMp4(storage, file);
+						}, null, "Build MP4 for "+storage+":"+file);
+						longRunningTaskScheduler.Start(task);
 						runningTasks[storage+":"+file+":mp4"] = task;
 					}
 					if(!runningTasks.ContainsKey(storage+":"+file+":webm") &&
 					   !File.Exists(basePath+"/"+storage+"/webm/"+file)) {
-						Task task = longRunningTaskFactory.StartNew(delegate { BuildWebm(storage, file); });
+						LongTask task = new LongTask(delegate {
+							BuildWebm(storage, file);
+						}, null, "Build WEBM for "+storage+":"+file, LongTaskPriority.Low);
+						longRunningTaskScheduler.Start(task);
 						runningTasks[storage+":"+file+":webm"] = task;
 					}
 				}
@@ -351,9 +359,10 @@ namespace Erasme.Cloud.Video
 			// GET /[storage]/[file]/info get video info
 			else if((context.Request.Method == "GET") && (parts.Length == 3) && long.TryParse(parts[1], out id2) && (parts[2] == "info")) {
 				string storage = parts[0];
+				long file = id2;
 				JsonValue json = new JsonObject();
 				json["storage"] = storage;
-				json["file"] = id2;
+				json["file"] = file;
 				string format = "mp4";
 				if(context.Request.Headers.ContainsKey("user-agent")) {
 					if((context.Request.Headers["user-agent"].IndexOf("Firefox/") >= 0) ||
@@ -364,32 +373,45 @@ namespace Erasme.Cloud.Video
 				JsonValue status = new JsonObject();
 				json["status"] = status;
 
-				lock(instanceLock) {
-					if(File.Exists(basePath+"/"+storage+"/mp4/"+id2))
-						status["mp4"] = "ready";
-					else {
-						if(runningTasks.ContainsKey(storage+":"+id2+":mp4"))
+				//Console.WriteLine("video info storage: " + storage + ", file: " + file);
+
+				if(File.Exists(basePath + "/" + storage + "/mp4/" + file.ToString()))
+					status["mp4"] = "ready";
+				else {
+					lock(instanceLock) {
+						if(runningTasks.ContainsKey(storage + ":" + file.ToString() + ":mp4")) {
 							status["mp4"] = "building";
+						}
 						else {
-							Task task = longRunningTaskFactory.StartNew(delegate { BuildMp4(storage, id2); });
-							runningTasks[storage+":"+id2+":mp4"] = task;
+							LongTask task = new LongTask(delegate {
+								BuildMp4(storage, file);
+							}, context.User, "Build MP4 for " + storage + ":" + file);
+							longRunningTaskScheduler.Start(task);
+							runningTasks[storage + ":" + file.ToString() + ":mp4"] = task;
 							status["mp4"] = "building";
 						}
 					}
-					if(File.Exists(basePath+"/"+storage+"/webm/"+id2))
-						status["webm"] = "ready";
-					else {
-						if(runningTasks.ContainsKey(storage+":"+id2+":webm"))
+				}
+
+				if(File.Exists(basePath+"/"+storage+"/webm/"+file.ToString()))
+					status["webm"] = "ready";
+				else {
+					lock(instanceLock) {
+						if(runningTasks.ContainsKey(storage + ":" + file.ToString() + ":webm"))
 							status["webm"] = "building";
 						else {
-							Task task = longRunningTaskFactory.StartNew(delegate { BuildWebm(storage, id2); });
-							runningTasks[id+":"+id2+":webm"] = task;
+							LongTask task = new LongTask(delegate {
+								BuildWebm(storage, file);
+							}, context.User, "Build WEBM for " + storage + ":" + file, LongTaskPriority.Low);
+							longRunningTaskScheduler.Start(task);
+							runningTasks[storage + ":" + file.ToString() + ":webm"] = task;
 							status["webm"] = "building";
 						}
 					}
 				}
 				context.Response.StatusCode = 200;
 				context.Response.Content = new JsonContent(json);
+				context.SendResponse();
 			}
 		}
 	}

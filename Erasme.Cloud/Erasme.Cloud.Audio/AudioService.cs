@@ -37,6 +37,7 @@ using Erasme.Http;
 using Erasme.Json;
 using Erasme.Cloud;
 using Erasme.Cloud.Storage;
+using Erasme.Cloud.Utils;
 
 namespace Erasme.Cloud.Audio
 {
@@ -46,16 +47,17 @@ namespace Erasme.Cloud.Audio
 		string basePath;
 		string temporaryDirectory;
 		int cacheDuration;
-		TaskFactory longRunningTaskFactory;
+		PriorityTaskScheduler longRunningTaskScheduler;
 		object instanceLock = new object();
-		Dictionary<string,Task> runningTasks = new Dictionary<string, Task>();
+		Dictionary<string,LongTask> runningTasks = new Dictionary<string, LongTask>();
 		
-		public AudioService(string basepath, StorageService storage, string temporaryDirectory, int cacheDuration, TaskFactory longRunningTaskFactory)
+		public AudioService(string basepath, StorageService storage, string temporaryDirectory,
+			int cacheDuration, PriorityTaskScheduler longRunningTaskScheduler)
 		{
 			basePath = basepath;
 			this.temporaryDirectory = temporaryDirectory;
 			this.cacheDuration = cacheDuration;
-			this.longRunningTaskFactory = longRunningTaskFactory;
+			this.longRunningTaskScheduler = longRunningTaskScheduler;
 			Storage = storage;
 			Storage.FileCreated += OnFileCreated;
 			Storage.FileChanged += OnFileChanged;
@@ -181,12 +183,19 @@ namespace Erasme.Cloud.Audio
 				lock(instanceLock) {
 					if(!runningTasks.ContainsKey(storage+":"+file+":mp3") &&
 					   !File.Exists(basePath+"/"+storage+"/mp3/"+file)) {
-						Task task = longRunningTaskFactory.StartNew(delegate { BuildMp3(storage, file); });
+						LongTask task = new LongTask(delegate {
+							BuildMp3(storage, file);
+						}, null, "Build MP3 "+storage+":"+file);
+						longRunningTaskScheduler.Start(task);
 						runningTasks[storage+":"+file+":mp3"] = task;
 					}
 					if(!runningTasks.ContainsKey(storage+":"+file+":ogg") &&
 					   !File.Exists(basePath+"/"+storage+"/ogg/"+file)) {
-						Task task = longRunningTaskFactory.StartNew(delegate { BuildOgg(storage, file); });
+						LongTask task = new LongTask(delegate {
+							BuildOgg(storage, file); 
+						}, null, "Build OGG "+storage+":"+file, LongTaskPriority.Low);
+
+						longRunningTaskScheduler.Start(task);
 						runningTasks[storage+":"+file+":ogg"] = task;
 					}
 				}
@@ -270,7 +279,10 @@ namespace Erasme.Cloud.Audio
 						if(runningTasks.ContainsKey(storage+":"+file+":mp3"))
 							status["mp3"] = "building";
 						else {
-							Task task = longRunningTaskFactory.StartNew(delegate { BuildMp3(storage, file); });
+							LongTask task = new LongTask(delegate {
+								BuildMp3(storage, file);
+							}, null, "Build MP3 "+storage+":"+file);
+							longRunningTaskScheduler.Start(task);
 							runningTasks[storage+":"+file+":mp3"] = task;
 							status["mp3"] = "building";
 						}
@@ -281,12 +293,16 @@ namespace Erasme.Cloud.Audio
 						if(runningTasks.ContainsKey(storage+":"+file+":ogg"))
 							status["ogg"] = "building";
 						else {
-							Task task = longRunningTaskFactory.StartNew(delegate { BuildOgg(storage, file); });
+							LongTask task = new LongTask(delegate {
+								BuildOgg(storage, file);
+							}, null, "Build OGG "+storage+":"+file, LongTaskPriority.Low);
+							longRunningTaskScheduler.Start(task);
 							runningTasks[storage+":"+file+":ogg"] = task;
 							status["ogg"] = "building";
 						}
 					}
 				}
+
 				context.Response.StatusCode = 200;
 				context.Response.Content = new JsonContent(json);
 			}
