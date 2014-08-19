@@ -259,13 +259,14 @@ namespace Erasme.Cloud.Storage
 
 		void MonitorClientSignalChanged(string storage, long rev)
 		{
-			JsonValue json = new JsonObject();
-			json["storage"] = storage;
-			json["action"] = "changed";
-			json["rev"] = rev;
-			string jsonString = json.ToString();
 			lock(clients) {
 				if(clients.ContainsKey(storage)) {
+					JsonValue json = new JsonObject();
+					json["storage"] = storage;
+					json["action"] = "changed";
+					json["rev"] = rev;
+					string jsonString = json.ToString();
+
 					clients[storage].Broadcast(jsonString);
 				}
 			}
@@ -883,7 +884,6 @@ namespace Erasme.Cloud.Storage
 				RaisesCommentCreated(storage, file, id);
 				RaisesFileChanged(storage, file);
 			}
-			
 			return id;
 		}
 
