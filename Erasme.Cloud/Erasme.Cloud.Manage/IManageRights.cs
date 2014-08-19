@@ -34,6 +34,10 @@ namespace Erasme.Cloud.Manage
 		void EnsureCanReadClients(HttpContext context);
 
 		void EnsureCanDeleteClients(HttpContext context);
+
+		void EnsureCanReadTasks(HttpContext context);
+
+		void EnsureCanDeleteTasks(HttpContext context);
 	}
 
 	public class DummyManageRights: IManageRights
@@ -43,6 +47,14 @@ namespace Erasme.Cloud.Manage
 		}
 
 		public void EnsureCanDeleteClients(HttpContext context)
+		{
+		}
+
+		public void EnsureCanReadTasks(HttpContext context)
+		{
+		}
+
+		public void EnsureCanDeleteTasks(HttpContext context)
 		{
 		}
 	}

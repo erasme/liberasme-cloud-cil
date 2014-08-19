@@ -5,7 +5,7 @@
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
-// Copyright (c) 2013 Departement du Rhone
+// Copyright (c) 2013-2014 Departement du Rhone
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -32,13 +32,17 @@ using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Erasme.Http;
 using Erasme.Json;
+using Erasme.Cloud.Utils;
 
 namespace Erasme.Cloud.Manage
 {
 	public class ManageService: IHttpHandler
 	{
-		public ManageService()
+		PriorityTaskScheduler scheduler;
+
+		public ManageService(PriorityTaskScheduler scheduler)
 		{
+			this.scheduler = scheduler;
 			Rights = new DummyManageRights();
 		}
 
@@ -104,12 +108,51 @@ namespace Erasme.Cloud.Manage
 			return done;
 		}
 
+		public JsonValue GetTasks()
+		{
+			return GetTasks(null);
+		}
+
+		public JsonValue GetTasks(Dictionary<string,string> filters)
+		{
+			LongTask[] allTasks = scheduler.Tasks;
+
+			// get connected HTTP clients
+			JsonArray tasks = new JsonArray();
+			foreach(LongTask task in allTasks) {
+				JsonObject jsonTask = new JsonObject();
+				jsonTask["id"] = task.Id;
+				jsonTask["status"] = task.Status.ToString();
+				jsonTask["create"] = task.CreateDate.ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fff'Z'");
+				jsonTask["owner"] = task.Owner;
+				jsonTask["description"] = task.Description;
+				jsonTask["priority"] = task.Priority.ToString();
+				if(CheckFilters(jsonTask, filters))
+					tasks.Add(jsonTask);
+			}
+			return tasks;
+		}
+
+		public bool AbortTask(string id)
+		{
+			bool done = false;
+			foreach(LongTask task in scheduler.Tasks) {
+				if(task.Id == id) {
+					task.Abort();
+					done = true;
+					break;
+				}
+			}
+			return done;
+		}
+
 		public Task ProcessRequestAsync(HttpContext context)
 		{
 			string[] parts = context.Request.Path.Split(new char[] { '/' }, System.StringSplitOptions.RemoveEmptyEntries);
 
 			if((context.Request.Method == "GET") && (parts.Length == 0)) {
 				Rights.EnsureCanReadClients(context);
+				Rights.EnsureCanReadTasks(context);
 
 				context.Response.StatusCode = 200;
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
@@ -117,6 +160,8 @@ namespace Erasme.Cloud.Manage
 				context.Response.Content = new JsonContent(json);
 				// get connected HTTP clients
 				json["clients"] = GetClients(context, context.Request.QueryString);
+				// get running tasks
+				json["tasks"] = GetTasks(context.Request.QueryString);
 				context.Response.Content = new JsonContent(json);
 			}
 			// GET /clients get all connected HTTP clients
@@ -125,13 +170,27 @@ namespace Erasme.Cloud.Manage
 
 				context.Response.StatusCode = 200;
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
-				context.Response.Content = new JsonContent(GetClients(context));
+				context.Response.Content = new JsonContent(GetClients(context, context.Request.QueryString));
+			}
+			// GET /tasks get all scheduled tasks
+			else if((context.Request.Method == "GET") && (context.Request.Path == "/tasks")) {
+				Rights.EnsureCanReadTasks(context);
+
+				context.Response.StatusCode = 200;
+				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
+				context.Response.Content = new JsonContent(GetTasks(context.Request.QueryString));
 			}
 			// DELETE /clients/[address or user] close a client connection
 			else if((context.Request.Method == "DELETE") && (parts.Length == 2) && (parts[0] == "clients")) {
 				Rights.EnsureCanDeleteClients(context);
 
 				CloseClient(context, parts[1]);
+			}
+			// DELETE /tasks/[ID] abort a task
+			else if((context.Request.Method == "DELETE") && (parts.Length == 2) && (parts[0] == "tasks")) {
+				Rights.EnsureCanDeleteTasks(context);
+
+				AbortTask(parts[1]);
 			}
 			return Task.FromResult<Object>(null);
 		}
