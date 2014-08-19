@@ -5,7 +5,7 @@
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
-// Copyright (c) 2012-2013 Departement du Rhone
+// Copyright (c) 2012-2014 Departement du Rhone
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -113,12 +113,6 @@ namespace Erasme.Cloud.Message
 					dbcmd.CommandText = "CREATE TABLE message (id INTEGER PRIMARY KEY AUTOINCREMENT, origin_id VARCHAR, destination_id VARCHAR, content VARCHAR DEFAULT NULL, create_date INTEGER, seen_date INTEGER, type VARCHAR DEFAULT NULL)";
 					dbcmd.ExecuteNonQuery();
 				}
-
-				// create connection log table
-				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-					dbcmd.CommandText = "CREATE TABLE log (id INTEGER PRIMARY KEY AUTOINCREMENT, user VARCHAR, address INTEGER, port INTEGER, open INTEGER(1) DEFAULT 1, date INTEGER)";
-					dbcmd.ExecuteNonQuery();
-				}
 			}
 
 			// disable disk sync.
@@ -131,21 +125,6 @@ namespace Erasme.Cloud.Message
 
 		public IMessageRights Rights { get; set; }
 
-		public void Log(string user, long address, long port, bool open)
-		{
-			lock(dbcon) {
-				// create the log entry
-				using(IDbCommand dbcmd = dbcon.CreateCommand()) {
-					dbcmd.CommandText = "INSERT INTO log (user,address,port,open,date) VALUES (@user,@address,@port,@open,datetime('now'))";
-					dbcmd.Parameters.Add(new SqliteParameter("user", user));
-					dbcmd.Parameters.Add(new SqliteParameter("address", address));
-					dbcmd.Parameters.Add(new SqliteParameter("port", port));
-					dbcmd.Parameters.Add(new SqliteParameter("open", open?1:0));
-					dbcmd.ExecuteNonQuery();
-				}
-			}
-		}
-		
 		public delegate void MessageCreatedEventHandler(JsonValue message);
 		List<MessageCreatedEventHandler> messageCreatedHandlers = new List<MessageCreatedEventHandler>();
 		public event MessageCreatedEventHandler MessageCreated {
