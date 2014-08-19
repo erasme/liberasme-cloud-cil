@@ -52,7 +52,7 @@ namespace Erasme.Cloud.Authentication
 		public AuthSessionService(string basepath, double timeout, string headerKey, string cookieKey)
 		{
 			sessionTimeout = timeout;
-			this.headerKey = headerKey;
+			this.headerKey = headerKey.ToLower();
 			this.cookieKey = cookieKey;
 			
 			if(!Directory.Exists(basepath))
@@ -234,6 +234,28 @@ namespace Erasme.Cloud.Authentication
 			return sessions;
 		}
 
+		static object AuthenticatedUserKey = new object();
+
+		public string GetAuthenticatedUser(HttpContext context)
+		{
+			if(!context.Data.ContainsKey(AuthenticatedUserKey)) {
+				string sessionId = null;
+				if(context.Request.Headers.ContainsKey(headerKey))
+					sessionId = context.Request.Headers[headerKey];
+				else if(context.Request.Cookies.ContainsKey(cookieKey))
+					sessionId = context.Request.Cookies[cookieKey];
+				string user = null;
+				if(sessionId != null) {
+					JsonValue session = Get(sessionId);
+					if(session != null)
+						user = (string)session["user"];
+				}
+				context.Data[AuthenticatedUserKey] = user;
+				if(user != null)
+					context.User = user;
+			}
+			return (string)context.Data[AuthenticatedUserKey];
+		}
 
 		public override void ProcessRequest(HttpContext context)
 		{
@@ -274,8 +296,8 @@ namespace Erasme.Cloud.Authentication
 			// GET /current get the current session
 			else if((context.Request.Method == "GET") && (parts.Length == 1) && (parts[0] == "current")) {
 				string sessionId = null;
-				if(context.Request.Headers.ContainsKey(headerKey.ToLower()))
-					sessionId = context.Request.Headers[headerKey.ToLower()];
+				if(context.Request.Headers.ContainsKey(headerKey))
+					sessionId = context.Request.Headers[headerKey];
 				else if(context.Request.Cookies.ContainsKey(cookieKey))
 					sessionId = context.Request.Cookies[cookieKey];
 				if(sessionId == null) {
