@@ -44,7 +44,7 @@ namespace Erasme.Cloud.StaticFiles
 			if(Path.IsPathRooted(basedir))
 				this.basedir = Path.GetFullPath(basedir);
 			else
-				this.basedir = Path.GetFullPath(Environment.CurrentDirectory+"/"+basedir);
+				this.basedir = Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, basedir));
 			this.cacheDuration = cacheDuration;
 		}
 
@@ -55,7 +55,11 @@ namespace Erasme.Cloud.StaticFiles
 				return;
 
 			if(context.Request.Method == "GET") {
-				string fullPath = Path.GetFullPath(basedir+"/"+context.Request.Path);
+				string[] parts = context.Request.Path.Split(new char[]{ '/' }, StringSplitOptions.RemoveEmptyEntries);
+				string[] allParts = new string[parts.Length + 1];
+				allParts[0] = basedir;
+				parts.CopyTo(allParts, 1);
+				string fullPath = Path.GetFullPath(Path.Combine(allParts));
 				// check if full path is in the base directory
 				if(!fullPath.StartsWith(basedir)) {
 					context.Response.StatusCode = 403;
@@ -64,8 +68,8 @@ namespace Erasme.Cloud.StaticFiles
 				}
 
 				if(!File.Exists(fullPath) && Directory.Exists(fullPath)) {
-					if(fullPath.EndsWith("/"))
-						fullPath += "index.html";
+					if(context.Request.Path.EndsWith("/"))
+						fullPath = Path.Combine(fullPath, "index.html");
 					else {
 						context.Response.StatusCode = 301;
 						context.Response.Headers["location"] = context.Request.Path+"/";
@@ -75,12 +79,7 @@ namespace Erasme.Cloud.StaticFiles
 				}
 
 				if(File.Exists(fullPath)) {
-					string shortName;
-					int pos = fullPath.LastIndexOf('/');
-					if(pos == -1)
-						shortName = fullPath;
-					else
-						shortName = fullPath.Substring(pos + 1);
+					string shortName = Path.GetFileName(fullPath);
 
 					string mimetype = FileContent.MimeType(shortName);
 					context.Response.Headers["content-type"] = mimetype;

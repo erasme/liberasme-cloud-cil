@@ -219,8 +219,9 @@ namespace Erasme.Cloud.Audio
 		
 		void OnStorageDeleted(string storage)
 		{
-			if(Directory.Exists(basePath+"/"+storage))
-				Directory.Delete(basePath+"/"+storage, true);
+			string storagePath = Path.Combine(basePath, storage);
+			if(Directory.Exists(storagePath))
+				Directory.Delete(storagePath, true);
 		}
 
 		public override void ProcessRequest(HttpContext context)
@@ -243,7 +244,7 @@ namespace Erasme.Cloud.Audio
 				string mimetype = "audio/mpeg";
 				if(format == "ogg")
 					mimetype = "audio/ogg";
-				string fileName = basePath+"/"+storage+"/"+format+"/"+file;
+				string fileName = Path.Combine(basePath, storage, format, file.ToString());
 				if(File.Exists(fileName)) {
 					context.Response.StatusCode = 200;
 					context.Response.Headers["content-type"] = mimetype;
@@ -273,7 +274,7 @@ namespace Erasme.Cloud.Audio
 				json["status"] = status;
 
 				lock(instanceLock) {
-					if(File.Exists(basePath+"/"+storage+"/mp3/"+file))
+					if(File.Exists(Path.Combine(basePath, storage, "mp3", file.ToString())))
 						status["mp3"] = "ready";
 					else {
 						if(runningTasks.ContainsKey(storage+":"+file+":mp3"))
@@ -287,7 +288,7 @@ namespace Erasme.Cloud.Audio
 							status["mp3"] = "building";
 						}
 					}
-					if(File.Exists(basePath+"/"+storage+"/ogg/"+file))
+					if(File.Exists(Path.Combine(basePath, storage, "ogg", file.ToString())))
 						status["ogg"] = "ready";
 					else {
 						if(runningTasks.ContainsKey(storage+":"+file+":ogg"))

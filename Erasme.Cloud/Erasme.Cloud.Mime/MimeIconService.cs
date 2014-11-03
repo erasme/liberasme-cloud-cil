@@ -47,7 +47,7 @@ namespace Erasme.Cloud.Mime
 			if(Path.IsPathRooted(basedir))
 				this.basedir = Path.GetFullPath(basedir);
 			else
-				this.basedir = Path.GetFullPath(Environment.CurrentDirectory+"/"+basedir);
+				this.basedir = Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, basedir));
 			this.cacheDuration = cacheDuration;
 		}
 		
