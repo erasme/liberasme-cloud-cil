@@ -38,6 +38,7 @@ using Erasme.Http;
 using Erasme.Cloud;
 using Erasme.Cloud.Storage;
 using Erasme.Cloud.Logger;
+using Erasme.Cloud.Utils;
 
 namespace Erasme.Cloud.Preview
 {
@@ -50,78 +51,9 @@ namespace Erasme.Cloud.Preview
 		string temporaryDirectory;
 		int cacheDuration;
 		ILogger logger;
-
+		ResourcesLocker resourcesLocker = new ResourcesLocker();
 		IDbConnection dbcon;
-				
-		public class Resource: IDisposable
-		{
-			static object globalLock = new object();
-			static Dictionary<string,LockWrapper> resourceLocks = new Dictionary<string, LockWrapper>();
-			
-			string resource;
-		
-			class LockWrapper
-			{
-				public object instanceLock;
-				public int counter;
-				public bool taken;
-			}
 
-			Resource(string resource)
-			{
-				this.resource = resource;
-			}
-			
-			public void Dispose()
-			{
-				bool last = true;
-				LockWrapper wrapper;
-				lock(globalLock) {
-					wrapper = resourceLocks[resource];
-					if(wrapper.counter == 1)
-						resourceLocks.Remove(resource);
-					else {
-						wrapper.counter--;
-						last = false;
-					}
-				}
-				if(!last) {
-					lock(wrapper.instanceLock) {
-						wrapper.taken = false;
-						Monitor.Pulse(wrapper.instanceLock);
-					}
-				}
-			}
-			
-			public static Resource Lock(string resource)
-			{
-				LockWrapper wrapper = null;
-				bool own = false;
-				lock(globalLock) {
-					if(resourceLocks.ContainsKey(resource)) {
-						wrapper = resourceLocks[resource];
-						wrapper.counter++;
-					}
-					else {
-						wrapper = new LockWrapper();
-						wrapper.instanceLock = new object();
-						wrapper.counter = 1;
-						wrapper.taken = true;
-						own = true;
-						resourceLocks[resource] = wrapper;
-					}
-				}
-				if(!own) {
-					lock(wrapper.instanceLock) {
-						while(wrapper.taken) {
-							Monitor.Wait(wrapper.instanceLock);
-						}
-					}
-				}
-				return new Resource(resource);
-			}
-		}
-		
 		public PreviewService(string basepath, StorageService storage, int width, int height, string temporaryDirectory, int cacheDuration, ILogger logger)
 		{
 			basePath = basepath;
@@ -169,7 +101,7 @@ namespace Erasme.Cloud.Preview
 			previewPath = basePath+"/"+storage+"/"+file;
 			fails = true;
 
-			using(Resource.Lock(storage+":"+file)) {				
+			using(resourcesLocker.Lock(storage+":"+file)) {
 				long oldRev = -1;
 
 				lock(dbcon) {
@@ -230,7 +162,7 @@ namespace Erasme.Cloud.Preview
 
 		void DeletePreview(string storage, long file)
 		{
-			using(Resource.Lock(storage+":"+file)) {
+			using(resourcesLocker.Lock(storage+":"+file)) {
 				long oldId = -1;
 
 				lock(dbcon) {
@@ -262,7 +194,40 @@ namespace Erasme.Cloud.Preview
 			}
 		}
 
-		
+		public static bool BuildPreview(string temporaryDirectory, string sourceFile, string mimetype, int width, int height, out string previewMimetype, out string previewPath, out string error)
+		{
+			IPreview preview = null;
+			bool success = false;
+			previewMimetype = null;
+			previewPath = null;
+			error = null;
+
+			if(mimetype.StartsWith("image/") || mimetype.StartsWith("video/") || mimetype.StartsWith("audio/"))
+				preview = new ImageVideoPreview(temporaryDirectory);
+			else if(Pdf.PdfService.IsPdfCompatible(mimetype))
+				preview = new PdfPreview(temporaryDirectory);
+			else if(mimetype == "text/uri-list")
+				preview = new UrlPreview(temporaryDirectory);
+			else if(mimetype.StartsWith("text/plain"))
+				preview = new TextPreview(temporaryDirectory);
+
+			if(preview != null) {
+				PreviewFormat format;
+				previewPath = preview.Process(sourceFile, mimetype, width, height, out format, out error);
+				if(previewPath != null) {
+					if(format == PreviewFormat.PNG)
+						previewMimetype = "image/png";
+					else
+						previewMimetype = "image/jpeg";
+					success = true;
+				}
+				else {
+					success = false;
+				}
+			}
+			return success;
+		}
+
 		bool BuildPreview(string storage, long file, string filepath, string mimetype, out string previewMimetype, out string previewPath)
 		{
 			IPreview preview = null;
