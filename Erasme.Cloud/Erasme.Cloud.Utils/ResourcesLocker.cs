@@ -31,7 +31,7 @@ using System;
 using System.Threading;
 using System.Collections.Generic;
 
-namespace Erasme.Cloud
+namespace Erasme.Cloud.Utils
 {
 	public class ResourcesLocker
 	{
