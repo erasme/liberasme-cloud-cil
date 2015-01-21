@@ -502,14 +502,12 @@ namespace Erasme.Cloud.Message
 			// GET /[id] get a message
 			else if((context.Request.Method == "GET") && (parts.Length == 1) && (long.TryParse(parts[0], out id))) {
 				JsonValue json = GetMessage(id);
-
-				Rights.EnsureCanReadMessage(context, json["origin"], json["destination"]);
-
 				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 				if(json == null) {
 					context.Response.StatusCode = 404;
 				}
 				else {
+					Rights.EnsureCanReadMessage(context, json["origin"], json["destination"]);
 					context.Response.StatusCode = 200;
 					context.Response.Content = new JsonContent(json);
 				}
