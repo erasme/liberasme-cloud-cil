@@ -98,6 +98,7 @@ else {
 
 			string args = BuildArguments(new string[]{
 				"--ignore-ssl-errors=yes",
+				"--ssl-protocol=any",
 				"/dev/stdin",
 				url,
 				filename,
