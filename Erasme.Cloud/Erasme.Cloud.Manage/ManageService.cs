@@ -185,12 +185,17 @@ namespace Erasme.Cloud.Manage
 				Rights.EnsureCanDeleteClients(context);
 
 				CloseClient(context, parts[1]);
+				context.Response.StatusCode = 200;
+				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 			}
 			// DELETE /tasks/[ID] abort a task
 			else if((context.Request.Method == "DELETE") && (parts.Length == 2) && (parts[0] == "tasks")) {
 				Rights.EnsureCanDeleteTasks(context);
 
 				AbortTask(parts[1]);
+
+				context.Response.StatusCode = 200;
+				context.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 			}
 			return Task.FromResult<Object>(null);
 		}
