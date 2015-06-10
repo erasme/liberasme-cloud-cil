@@ -3,7 +3,7 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProductVersion>10.0.0</ProductVersion>
+    <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{33F8852A-7214-451D-A665-FF6148F89856}</ProjectGuid>
     <OutputType>Library</OutputType>
@@ -77,6 +77,7 @@
     <Compile Include="Erasme.Cloud.Storage\IStoragePlugin.cs" />
     <Compile Include="Erasme.Cloud.Utils\LongTask.cs" />
     <Compile Include="Erasme.Cloud.Utils\PriorityTaskScheduler.cs" />
+    <Compile Include="Erasme.Cloud.Manage\IManageExtension.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>

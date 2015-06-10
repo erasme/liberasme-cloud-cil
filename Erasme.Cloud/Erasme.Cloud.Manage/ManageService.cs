@@ -87,6 +87,15 @@ namespace Erasme.Cloud.Manage
 						jsonClient["x-forwarded-for"] = client.Context.Request.Headers["x-forwarded-for"];
 					if(client.Context.Request.Headers.ContainsKey("user-agent"))
 						jsonClient["user-agent"] = client.Context.Request.Headers["user-agent"];
+
+					WebSocketHandler handler = client.Context.WebSocketHandler;
+					if(handler != null) {
+						IManageExtension extension = handler as IManageExtension;
+						if(extension != null) {
+							extension.GetStatus(jsonClient);
+						}
+					}
+
 				}
 				if(CheckFilters(jsonClient, filters))
 					clients.Add(jsonClient);
